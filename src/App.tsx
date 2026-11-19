@@ -21,6 +21,7 @@ import { QuickNotesPage } from './pages/QuickNotesPage';
 import { ForerunnerStudioPage } from './pages/ForerunnerStudioPage';
 import { VisitorsPage } from './pages/VisitorsPage';
 import { ViewerNotesPage } from './pages/ViewerNotesPage';
+import { PrayerWallPage } from './pages/PrayerWallPage';
 import { VisitorFollowUpStatus } from './types';
 import { SaveStatusPill } from './components/SaveStatusPill';
 import { FloatingQuickNoteButton } from './components/FloatingQuickNoteButton';
@@ -38,6 +39,7 @@ const VIEWER_ALLOWED_TABS = new Set([
   'calendar',
   'schedules',
   'people-ministries',
+  'prayer-wall',
 ]);
 
 function resolveViewerTab(tab: string | null): string | null {
@@ -52,6 +54,7 @@ const KNOWN_APP_ROUTES = new Set([
   'regular-services',
   'schedules',
   'people-ministries',
+  'prayer-wall',
   'settings',
   'message-templates',
   'tasks',
@@ -411,6 +414,7 @@ function AppContent() {
             {!isViewer && effectiveTab === 'regular-services' && <RegularServicesPage />}
             {effectiveTab === 'schedules' && <SchedulesPage onNavigate={handleNavigate} />}
             {effectiveTab === 'people-ministries' && <PeopleMinistriesPage />}
+            {isViewer && effectiveTab === 'prayer-wall' && <PrayerWallPage />}
 
             {!isViewer && (
               <>

@@ -22,7 +22,8 @@ import {
   MessageSquarePlus,
   Sun,
   Moon,
-  Facebook
+  Facebook,
+  HeartHandshake
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -416,6 +417,22 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
               <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-[2px] bg-accent rounded-full transition-all duration-150 ease-out w-0 group-hover:w-3/4 group-focus-visible:w-3/4 pointer-events-none" />
             </button>
           )}
+          {/* 5. Prayer Wall (Viewer only) */}
+          {isViewer && (
+            <button
+              onClick={() => handleNavClick('prayer-wall')}
+              data-nav-active={currentTab === 'prayer-wall' ? 'true' : undefined}
+              className={`relative group flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 cursor-pointer ${
+                currentTab === 'prayer-wall'
+                  ? 'bg-accent-tint text-accent font-semibold'
+                  : 'text-sec hover:text-main'
+              }`}
+            >
+              <HeartHandshake className="w-4 h-4 shrink-0" />
+              <span>Prayer Wall</span>
+              <span className="nav-underline-bar absolute bottom-0.5 left-1/2 -translate-x-1/2 h-[2px] bg-accent rounded-full transition-all duration-150 ease-out w-0 group-hover:w-3/4 group-focus-visible:w-3/4 pointer-events-none" />
+            </button>
+          )}
           {/* Viewer sliding active nav underline (CSS anchor-positioned inside .viewer-motion) */}
           <span aria-hidden="true" className="viewer-nav-indicator" />
         </nav>
@@ -759,6 +776,19 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
                 </div>
               )}
             </div>
+          )}
+
+          {/* Mobile 5. Prayer Wall (Viewer only) */}
+          {isViewer && (
+            <button
+              onClick={() => handleNavClick('prayer-wall')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                currentTab === 'prayer-wall' ? 'bg-accent-tint text-accent font-semibold' : 'text-sec hover:bg-surface-hover'
+              }`}
+            >
+              <HeartHandshake className="w-4 h-4" />
+              <span>Prayer Wall</span>
+            </button>
           )}
 
           {/* Mobile 5. Tasks (Secretary only) */}
