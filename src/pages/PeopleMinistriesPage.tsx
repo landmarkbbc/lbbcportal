@@ -31,8 +31,46 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { OutlineNode, Person, DEPARTMENTS, RoleIconKey } from '../types';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { BirthdayImportTool } from '../components/BirthdayImportTool';
+import { OutlineAddPersonDropdown } from '../components/OutlineAddPersonDropdown';
 import { ROLE_ICON_DEFINITIONS, renderRoleIcon, getRoleIconDefinition, isImportantRole } from '../lib/roleIcons';
 import { PageLoading, Spinner } from '../components/LoadingIndicator';
+
+const EXPANDED_MINISTRIES_STORAGE_KEY = 'church_ministries_outline_expanded_v1';
+
+function readRememberedExpandedNodes(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(EXPANDED_MINISTRIES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const result: Record<string, boolean> = {};
+    for (const [key, val] of Object.entries(parsed)) {
+      if (val === true && typeof key === 'string' && key.length > 0) {
+        result[key] = true;
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function saveRememberedExpandedNodes(expanded: Record<string, boolean>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const clean: Record<string, boolean> = {};
+    for (const [key, val] of Object.entries(expanded)) {
+      if (val === true && key) {
+        clean[key] = true;
+      }
+    }
+    window.localStorage.setItem(EXPANDED_MINISTRIES_STORAGE_KEY, JSON.stringify(clean));
+  } catch {
+    // Ignore localStorage quota or privacy-mode errors cleanly
+  }
+}
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -108,13 +146,12 @@ export const PeopleMinistriesPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'outline' | 'people'>('people');
 
-  // Outline state (starts collapsed by default)
-  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
+  // Outline state (restores remembered expanded ministries; unopened stay collapsed)
+  const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>(() => readRememberedExpandedNodes());
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
   const [personInputNodeId, setPersonInputNodeId] = useState<string | null>(null);
-  const [personInputValue, setPersonInputValue] = useState('');
   const [nodeToDelete, setNodeToDelete] = useState<OutlineNode | null>(null);
 
   // Icon Picker Popup for "Important" role
@@ -149,7 +186,6 @@ export const PeopleMinistriesPage: React.FC = () => {
 
   // Auto-focus input helper
   const editInputRef = useRef<HTMLInputElement>(null);
-  const personInputRef = useRef<HTMLInputElement>(null);
   const fullNameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -160,16 +196,29 @@ export const PeopleMinistriesPage: React.FC = () => {
   }, [editingNodeId]);
 
   useEffect(() => {
-    if (personInputNodeId && personInputRef.current) {
-      personInputRef.current.focus();
-    }
-  }, [personInputNodeId]);
-
-  useEffect(() => {
     if (isPersonModalOpen && fullNameInputRef.current) {
       fullNameInputRef.current.focus();
     }
   }, [isPersonModalOpen]);
+
+  // Ignore and prune saved expanded IDs for ministries that no longer exist
+  useEffect(() => {
+    if (dataLoading.people) return;
+    const validIds = new Set(nodes.map(n => n.id));
+    setExpandedNodes(prev => {
+      const keys = Object.keys(prev);
+      const hasInvalid = keys.some(k => !prev[k] || !validIds.has(k));
+      if (!hasInvalid) return prev;
+      const cleaned: Record<string, boolean> = {};
+      for (const k of keys) {
+        if (prev[k] && validIds.has(k)) {
+          cleaned[k] = true;
+        }
+      }
+      saveRememberedExpandedNodes(cleaned);
+      return cleaned;
+    });
+  }, [nodes, dataLoading.people]);
 
   // Organize outline nodes in hierarchical tree
   const treeNodes = useMemo(() => {
@@ -195,9 +244,18 @@ export const PeopleMinistriesPage: React.FC = () => {
     return map;
   }, [people]);
 
-  // Toggle expand / collapse (starts collapsed by default)
+  // Toggle expand / collapse and remember open state in localStorage
   const toggleExpand = (nodeId: string) => {
-    setExpandedNodes(prev => ({ ...prev, [nodeId]: !prev[nodeId] }));
+    setExpandedNodes(prev => {
+      const next = { ...prev };
+      if (next[nodeId]) {
+        delete next[nodeId];
+      } else {
+        next[nodeId] = true;
+      }
+      saveRememberedExpandedNodes(next);
+      return next;
+    });
   };
 
   // Node editing
@@ -235,7 +293,11 @@ export const PeopleMinistriesPage: React.FC = () => {
     const newId = await addNode(parentId, defaultTitle);
     if (newId) {
       if (parentId) {
-        setExpandedNodes(prev => ({ ...prev, [parentId]: true }));
+        setExpandedNodes(prev => {
+          const next = { ...prev, [parentId]: true };
+          saveRememberedExpandedNodes(next);
+          return next;
+        });
       }
       setEditingNodeId(newId);
       setEditingTitle(defaultTitle);
@@ -265,28 +327,6 @@ export const PeopleMinistriesPage: React.FC = () => {
       isImportant: true,
       icon: iconKey
     });
-  };
-
-  // Add person under node
-  const handleAddPersonToNode = async (nodeId: string) => {
-    const val = personInputValue.trim();
-    if (!val) {
-      // Pressing Enter on an empty box closes the input
-      setPersonInputNodeId(null);
-      setPersonInputValue('');
-      return;
-    }
-    try {
-      await attachPersonToRole(nodeId, val);
-      // Save that name and immediately show another empty input box (focused)
-      setPersonInputValue('');
-      setPersonInputNodeId(nodeId);
-      setTimeout(() => {
-        personInputRef.current?.focus();
-      }, 0);
-    } catch (err) {
-      console.error('Error attaching person:', err);
-    }
   };
 
   // Move node order within siblings
@@ -701,58 +741,19 @@ export const PeopleMinistriesPage: React.FC = () => {
                       </span>
                     ))}
 
-                    {/* Inline Quick Add Person Form */}
+                    {/* Inline Searchable Member Dropdown */}
                     {!isViewer && (personInputNodeId === node.id ? (
-                      <div className="inline-flex items-center gap-1">
-                        <input
-                          ref={personInputRef}
-                          type="text"
-                          value={personInputValue}
-                          onChange={(e) => setPersonInputValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            e.stopPropagation();
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              handleAddPersonToNode(node.id);
-                            }
-                            if (e.key === 'Escape') {
-                              e.preventDefault();
-                              setPersonInputNodeId(null);
-                              setPersonInputValue('');
-                            }
-                          }}
-                          placeholder="Type person name & press Enter..."
-                          autoFocus
-                          className="px-2 py-0.5 text-xs rounded-md border border-accent bg-field text-main placeholder-mut focus:outline-none w-48 shadow-2xs"
-                        />
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleAddPersonToNode(node.id)}
-                          className="p-1 rounded text-accent hover:bg-accent-tint cursor-pointer"
-                          title="Add Person (Enter)"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setPersonInputNodeId(null);
-                            setPersonInputValue('');
-                          }}
-                          className="p-1 rounded text-mut hover:text-sec cursor-pointer"
-                          title="Cancel (Esc)"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <OutlineAddPersonDropdown
+                        assignedPeopleIds={node.assignedPeopleIds || []}
+                        people={people}
+                        onSelectPerson={(personId) => attachPersonToRole(node.id, personId)}
+                        onClose={() => setPersonInputNodeId(null)}
+                      />
                     ) : (
                       <button
                         type="button"
                         onClick={() => {
                           setPersonInputNodeId(node.id);
-                          setPersonInputValue('');
                         }}
                         className="inline-flex items-center gap-1 text-[11px] font-medium text-mut hover:text-accent px-1.5 py-0.5 rounded hover:bg-subtle transition-colors cursor-pointer"
                         title="Attach person to this role"
@@ -908,7 +909,6 @@ export const PeopleMinistriesPage: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              setExpandedNodes({});
               setActiveTab('outline');
             }}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
@@ -1007,16 +1007,19 @@ export const PeopleMinistriesPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Add Person Button */}
+              {/* Add Person & Import Birthdays Buttons */}
               {!isViewer && (
-                <button
-                  type="button"
-                  onClick={openNewPersonModal}
-                  className="px-4 py-2.5 text-xs font-semibold rounded-xl bg-accent hover:bg-accent-hover text-accent-contrast shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Add Person</span>
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <BirthdayImportTool />
+                  <button
+                    type="button"
+                    onClick={openNewPersonModal}
+                    className="px-4 py-2.5 text-xs font-semibold rounded-xl bg-accent hover:bg-accent-hover text-accent-contrast shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Add Person</span>
+                  </button>
+                </div>
               )}
             </div>
 
