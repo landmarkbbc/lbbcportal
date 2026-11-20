@@ -23,11 +23,13 @@ import {
   Sun,
   Moon,
   Facebook,
-  HeartHandshake
+  HeartHandshake,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { HeaderLiveClock } from './HeaderLiveClock';
+import { getValidAiStudioHref } from './GitHubAiNoticeBanner';
 import { AccentColor, ColorScheme, ThemeBase } from '../types';
 import { ACCENT_CATALOGUE, THEME_CATALOGUE, normalizeAppearance } from '../lib/themes';
 
@@ -46,6 +48,7 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
   const facebookHref = rawFacebookLink
     ? (/^https?:\/\//i.test(rawFacebookLink) ? rawFacebookLink : `https://${rawFacebookLink}`)
     : '';
+  const aiStudioHref = !isViewer ? getValidAiStudioHref(settings.aiStudioLink) : '';
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -597,7 +600,7 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
             </div>
           )}
 
-          {/* Secretary: Facebook icon button just before Settings */}
+          {/* Secretary: Facebook & Google AI Studio icon buttons just before Settings */}
           {!isViewer && facebookHref && (
             <a
               href={facebookHref}
@@ -608,6 +611,18 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
               aria-label="Facebook"
             >
               <Facebook className="w-4 h-4" />
+            </a>
+          )}
+          {!isViewer && aiStudioHref && (
+            <a
+              href={aiStudioHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-sec hover:text-accent hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 transition-colors cursor-pointer shrink-0"
+              title="Open Google AI Studio"
+              aria-label="Open Google AI Studio"
+            >
+              <Sparkles className="w-4 h-4" />
             </a>
           )}
 

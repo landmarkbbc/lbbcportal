@@ -14,6 +14,7 @@ export interface AppSettings {
   bannerImage?: string;
   facebookLink?: string;
   messengerChatLink?: string;
+  aiStudioLink?: string;
   clockStyle?: ClockStyle;
   clockColor?: ClockColor;
   showDailyVerse?: boolean;

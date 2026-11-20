@@ -43,6 +43,7 @@ import {
   patchUploadedDocx
 } from '../lib/docxPatcher';
 import { PageLoading, Spinner } from '../components/LoadingIndicator';
+import { GitHubAiNoticeBanner, isGithubIoHost } from '../components/GitHubAiNoticeBanner';
 
 interface ForerunnerStudioPageProps {
   onNavigate?: (tab: string) => void;
@@ -103,6 +104,7 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
+  const [showGithubAiNotice, setShowGithubAiNotice] = useState(false);
 
   // Step 3: Editor & Formatting
   const [contentHtml, setContentHtml] = useState('<p></p>');
@@ -249,8 +251,8 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
   // AI Transcription via Gemini API (Paused - Coming soon)
   const handleReadHandwriting = async () => {
     return; // Paused: nothing calls the Gemini API from this page
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('.github.io')) {
-      setTranscribeError('Available only in the AI Studio version');
+    if (isGithubIoHost()) {
+      setShowGithubAiNotice(true);
       return;
     }
     if (photos.length === 0) return;
@@ -871,6 +873,8 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
                     </div>
                   </div>
                 )}
+
+                {showGithubAiNotice && <GitHubAiNoticeBanner />}
 
                 {/* Transcription Error Banner */}
                 {transcribeError && (

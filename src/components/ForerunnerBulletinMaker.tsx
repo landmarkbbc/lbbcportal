@@ -48,6 +48,7 @@ import {
 } from '../lib/bulletinHelpers';
 import { BulletinPage2Overlay } from './BulletinPage2Overlay';
 import { DocxSourcePanel, WordFileSourceMode } from './DocxSourcePanel';
+import { GitHubAiNoticeBanner, isGithubIoHost } from './GitHubAiNoticeBanner';
 import { generateForerunnerDocx } from '../lib/docxGenerator';
 import { formatAndSplitLesson } from '../lib/lessonFormatter';
 import {
@@ -145,6 +146,7 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
   const [lessonMainPoint, setLessonMainPoint] = useState<string>('');
   const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [showGithubAiNotice, setShowGithubAiNotice] = useState<boolean>(false);
   const [hasAiResult, setHasAiResult] = useState<boolean>(false);
   const [showAiDraftNote, setShowAiDraftNote] = useState<boolean>(false);
   const [previousPastorText, setPreviousPastorText] = useState<string | null>(null);
@@ -226,6 +228,7 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
     setShowAiDraftNote(false);
     setHasAiResult(false);
     setAiError(null);
+    setShowGithubAiNotice(false);
   }, [selectedDate, forerunnerBulletins, matchingLesson, keepMonthBirthdays, sameMonthSavedBulletin]);
 
   // Handle uploading background picture
@@ -507,9 +510,10 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
   const handleGeneratePastorHeart = async () => {
     setAiError(null);
     setPendingAiDraft(null);
+    setShowGithubAiNotice(false);
 
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('.github.io')) {
-      setAiError('Available only in the AI Studio version');
+    if (isGithubIoHost()) {
+      setShowGithubAiNotice(true);
       return;
     }
 
@@ -1193,6 +1197,9 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
                   </button>
                 </div>
               </div>
+
+              {/* Live Site (github.io) AI Notice */}
+              {showGithubAiNotice && <GitHubAiNoticeBanner />}
 
               {/* Plain AI Error Banner */}
               {aiError && (

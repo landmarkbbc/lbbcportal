@@ -247,6 +247,7 @@ const defaultSettings: AppSettings = {
   secretaryName: '',
   facebookLink: '',
   messengerChatLink: '',
+  aiStudioLink: '',
   clockStyle: 'digital',
   clockColor: 'white',
   showDailyVerse: true,
