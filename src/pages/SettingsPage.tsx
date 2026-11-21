@@ -16,12 +16,7 @@ import {
   MessageCircle,
   Image as ImageIcon,
   BookOpen,
-  Shield,
-  Eye,
-  EyeOff,
   RefreshCw,
-  KeyRound,
-  Users,
   Sun,
   Moon
 } from 'lucide-react';
@@ -36,6 +31,7 @@ import {
 import { ColorScheme, ThemeBase, AccentColor, WeekStartDay, TimeFormat, ClockStyle, ClockColor, IdleTimeoutMinutes } from '../types';
 import { Spinner } from '../components/LoadingIndicator';
 import { DataBackupSection } from '../components/DataBackupSection';
+import { ViewerAccessSettingsSection } from '../components/ViewerAccessSettingsSection';
 
 const IDLE_TIMEOUT_OPTIONS: { value: IdleTimeoutMinutes; label: string }[] = [
   { value: 0, label: 'Off' },
@@ -55,20 +51,12 @@ export const SettingsPage: React.FC = () => {
     updateLoginBackground,
     viewerSettings,
     updateViewerSettings,
-    rebuildPeoplePublic,
   } = useData();
   const { logout, changePassword, username } = useAuth();
 
-  // Viewer Access settings local state
-  const [showPasscode, setShowPasscode] = useState(false);
-  const [isEditingPasscode, setIsEditingPasscode] = useState(false);
-  const [passcodeDraft, setPasscodeDraft] = useState('');
-  const [passcodeError, setPasscodeError] = useState<string | null>(null);
-  const [savingViewerSettings, setSavingViewerSettings] = useState(false);
+  // Idle timeout settings local state
   const [savingIdleSettings, setSavingIdleSettings] = useState(false);
   const [idleSavedMsg, setIdleSavedMsg] = useState<string | null>(null);
-  const [rebuildingViewerCopy, setRebuildingViewerCopy] = useState(false);
-  const [rebuildSuccessMsg, setRebuildSuccessMsg] = useState<string | null>(null);
 
   const [churchNameInput, setChurchNameInput] = useState(settings.churchName);
   const [secretaryNameInput, setSecretaryNameInput] = useState(settings.secretaryName || '');
@@ -397,65 +385,6 @@ export const SettingsPage: React.FC = () => {
       setPasswordError(err.message || 'Failed to update password');
     } finally {
       setSavingPassword(false);
-    }
-  };
-
-  // Viewer Access handlers
-  const handleSelectViewerMode = async (mode: 'open' | 'passcode') => {
-    if (savingViewerSettings || viewerSettings.mode === mode) return;
-    setSavingViewerSettings(true);
-    try {
-      await updateViewerSettings({ mode });
-    } finally {
-      setSavingViewerSettings(false);
-    }
-  };
-
-  const handleGeneratePasscode = async () => {
-    if (savingViewerSettings) return;
-    const arr = new Uint32Array(1);
-    crypto.getRandomValues(arr);
-    const code = String(arr[0] % 1000000).padStart(6, '0');
-    setPasscodeError(null);
-    setSavingViewerSettings(true);
-    try {
-      await updateViewerSettings({ passcode: code });
-      setShowPasscode(true);
-      setIsEditingPasscode(false);
-      setPasscodeDraft('');
-    } finally {
-      setSavingViewerSettings(false);
-    }
-  };
-
-  const handleSaveCustomPasscode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleaned = passcodeDraft.replace(/\D/g, '');
-    if (!/^\d{6}$/.test(cleaned)) {
-      setPasscodeError('Passcode must be exactly 6 digits (0–9).');
-      return;
-    }
-    setPasscodeError(null);
-    setSavingViewerSettings(true);
-    try {
-      await updateViewerSettings({ passcode: cleaned });
-      setIsEditingPasscode(false);
-      setPasscodeDraft('');
-    } finally {
-      setSavingViewerSettings(false);
-    }
-  };
-
-  const handleRebuildViewerCopy = async () => {
-    if (rebuildingViewerCopy) return;
-    setRebuildingViewerCopy(true);
-    setRebuildSuccessMsg(null);
-    try {
-      const count = await rebuildPeoplePublic();
-      setRebuildSuccessMsg(`Synced ${count} ${count === 1 ? 'member' : 'members'} to viewer copy.`);
-      setTimeout(() => setRebuildSuccessMsg(null), 4000);
-    } finally {
-      setRebuildingViewerCopy(false);
     }
   };
 
@@ -1519,219 +1448,7 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* Viewer Access Section */}
-      <div className="bg-surface rounded-2xl border border-subtle shadow-card p-6 space-y-6">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-base font-semibold text-main flex items-center gap-2">
-              <Shield className="w-4 h-4 text-accent" />
-              <span>Viewer Access</span>
-            </h2>
-            <p className="text-xs text-sec mt-1">
-              Control how church members view read-only schedules, services, and the calendar when they open the site.
-            </p>
-          </div>
-          {savingViewerSettings && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-sec font-medium">
-              <Spinner size="xs" variant="accent" />
-              <span>Saving...</span>
-            </span>
-          )}
-        </div>
-
-        {/* Mode Choice */}
-        <div className="space-y-2.5">
-          <label className="block text-xs font-semibold text-main uppercase tracking-wider">
-            Access Mode
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              type="button"
-              disabled={savingViewerSettings}
-              onClick={() => handleSelectViewerMode('open')}
-              className={`p-4 rounded-xl border text-left transition-all cursor-pointer disabled:opacity-60 ${
-                viewerSettings.mode === 'open'
-                  ? 'border-accent ring-2 ring-accent/30 bg-accent-tint/30'
-                  : 'border-subtle hover:border-strong bg-surface'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-semibold text-main">Open (anyone can view)</span>
-                {viewerSettings.mode === 'open' && <Check className="w-4 h-4 text-accent shrink-0" />}
-              </div>
-              <p className="text-xs text-mut">
-                Visitors can enter read-only viewer mode directly with one tap—no passcode needed.
-              </p>
-            </button>
-
-            <button
-              type="button"
-              disabled={savingViewerSettings}
-              onClick={() => handleSelectViewerMode('passcode')}
-              className={`p-4 rounded-xl border text-left transition-all cursor-pointer disabled:opacity-60 ${
-                viewerSettings.mode === 'passcode'
-                  ? 'border-accent ring-2 ring-accent/30 bg-accent-tint/30'
-                  : 'border-subtle hover:border-strong bg-surface'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-semibold text-main">6-digit passcode</span>
-                {viewerSettings.mode === 'passcode' && <Check className="w-4 h-4 text-accent shrink-0" />}
-              </div>
-              <p className="text-xs text-mut">
-                Viewers must enter a 6-digit church passcode before viewing schedules or the calendar.
-              </p>
-            </button>
-          </div>
-        </div>
-
-        {/* Warning if Passcode mode active without a valid 6-digit passcode */}
-        {viewerSettings.mode === 'passcode' && !/^\d{6}$/.test(viewerSettings.passcode || '') && (
-          <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-            <span>
-              <strong>Passcode not set yet:</strong> Viewer mode is set to 6-digit passcode, but no code has been created yet. Generate or enter a 6-digit passcode below so members can sign in.
-            </span>
-          </div>
-        )}
-
-        {/* Passcode Management */}
-        {viewerSettings.mode === 'passcode' && (
-          <div className="p-4 rounded-xl bg-subtle/60 border border-subtle space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-xs font-semibold text-main uppercase tracking-wider flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-accent" />
-                  <span>Current Viewer Passcode</span>
-                </span>
-                <div className="mt-1.5 flex items-center gap-2.5">
-                  <span className="font-mono text-lg font-bold tracking-[0.25em] text-main bg-surface px-3 py-1 rounded-lg border border-subtle">
-                    {/^\d{6}$/.test(viewerSettings.passcode || '')
-                      ? (showPasscode ? viewerSettings.passcode : '••••••')
-                      : 'Not set'}
-                  </span>
-                  {/^\d{6}$/.test(viewerSettings.passcode || '') && (
-                    <button
-                      type="button"
-                      onClick={() => setShowPasscode(!showPasscode)}
-                      className="px-2.5 py-1.5 rounded-lg border border-subtle bg-surface hover:bg-surface-hover text-xs font-medium text-sec flex items-center gap-1.5 cursor-pointer"
-                    >
-                      {showPasscode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      <span>{showPasscode ? 'Hide' : 'Show'}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  disabled={savingViewerSettings}
-                  onClick={handleGeneratePasscode}
-                  className="px-3.5 py-2 rounded-xl bg-accent hover:bg-accent-hover text-accent-contrast text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Generate</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={savingViewerSettings}
-                  onClick={() => {
-                    setIsEditingPasscode(!isEditingPasscode);
-                    setPasscodeDraft(viewerSettings.passcode || '');
-                    setPasscodeError(null);
-                  }}
-                  className="px-3.5 py-2 rounded-xl border border-subtle bg-surface hover:bg-surface-hover text-main text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {isEditingPasscode ? 'Cancel' : 'Change'}
-                </button>
-              </div>
-            </div>
-
-            {isEditingPasscode && (
-              <form onSubmit={handleSaveCustomPasscode} className="pt-3 border-t border-subtle space-y-2.5 max-w-sm">
-                <label className="block text-xs font-semibold text-main">
-                  Enter new 6-digit passcode
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={passcodeDraft}
-                    onChange={(e) => {
-                      setPasscodeDraft(e.target.value.replace(/\D/g, '').slice(0, 6));
-                      if (passcodeError) setPasscodeError(null);
-                    }}
-                    placeholder="e.g. 123456"
-                    className="flex-1 px-3 py-2 rounded-xl border border-subtle bg-field text-main font-mono tracking-widest text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-                  />
-                  <button
-                    type="submit"
-                    disabled={savingViewerSettings || passcodeDraft.length !== 6}
-                    className="px-4 py-2 rounded-xl bg-accent hover:bg-accent-hover text-accent-contrast text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    Save
-                  </button>
-                </div>
-                {passcodeError && (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    <span>{passcodeError}</span>
-                  </p>
-                )}
-              </form>
-            )}
-          </div>
-        )}
-
-        {/* Rebuild viewer-safe member copy */}
-        <div className="pt-4 border-t border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-main">Viewer-Safe Member Copy</h3>
-            <p className="text-xs text-mut mt-0.5 max-w-xl">
-              Syncs member names, departments, and birthday month/day only (never contact numbers, addresses, notes, or Facebook links) for Viewer access.
-            </p>
-            {rebuildSuccessMsg && (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1.5 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{rebuildSuccessMsg}</span>
-              </p>
-            )}
-          </div>
-          <button
-            type="button"
-            disabled={rebuildingViewerCopy}
-            onClick={handleRebuildViewerCopy}
-            className="px-4 py-2 rounded-xl border border-subtle bg-surface hover:bg-surface-hover text-main text-xs font-semibold transition-colors inline-flex items-center gap-2 shrink-0 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
-          >
-            {rebuildingViewerCopy ? (
-              <>
-                <Spinner size="xs" variant="accent" />
-                <span>Rebuilding...</span>
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-3.5 h-3.5 text-accent" />
-                <span>Rebuild viewer copy</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Future Viewer Accounts placeholder */}
-        <div className="pt-4 border-t border-subtle flex items-center justify-between opacity-55 cursor-not-allowed select-none">
-          <div className="flex items-center gap-2.5">
-            <Users className="w-4 h-4 text-mut" />
-            <div>
-              <div className="text-xs font-semibold text-main">Viewer accounts - coming later</div>
-              <div className="text-[11px] text-mut">Individual named member viewer logins will be added in a future stage.</div>
-            </div>
-          </div>
-          <span className="px-2 py-0.5 rounded-md bg-subtle border border-subtle text-[10px] font-bold uppercase text-mut">
-            Soon
-          </span>
-        </div>
-      </div>
+      <ViewerAccessSettingsSection />
 
       {/* Data Management & Backup */}
       <DataBackupSection />

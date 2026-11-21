@@ -53,6 +53,7 @@ import {
   VisitorSettings,
   DEFAULT_VISITOR_AGE_GROUPS,
   ViewerAccessMode,
+  ViewerPasscodeKind,
   ViewerSettings,
   PublicBranding,
   PersonPublic,
@@ -883,6 +884,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             mode: data.mode === 'open' ? 'open' : 'passcode',
             passcode: typeof data.passcode === 'string' ? data.passcode : '',
             passcodeVersion: typeof data.passcodeVersion === 'number' ? data.passcodeVersion : 1,
+            passcodeKind: data.passcodeKind === 'custom'
+              ? 'custom'
+              : data.passcodeKind === 'random'
+                ? 'random'
+                : undefined,
             secretaryIdleMinutes: normalizeIdleMinutes(data.secretaryIdleMinutes, 60),
             viewerIdleMinutes: normalizeIdleMinutes(data.viewerIdleMinutes, 30),
             updatedAt: data.updatedAt
@@ -1264,6 +1270,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const nextVersion = passcodeChanged
       ? (viewerSettings.passcodeVersion || 1) + 1
       : (updates.passcodeVersion ?? viewerSettings.passcodeVersion ?? 1);
+    const nextPasscodeKind: ViewerPasscodeKind | undefined =
+      updates.passcodeKind !== undefined
+        ? (updates.passcodeKind === 'custom' ? 'custom' : 'random')
+        : viewerSettings.passcodeKind;
     const nextSecretaryIdle = updates.secretaryIdleMinutes !== undefined
       ? normalizeIdleMinutes(updates.secretaryIdleMinutes, 60)
       : normalizeIdleMinutes(viewerSettings.secretaryIdleMinutes, 60);
@@ -1275,6 +1285,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mode: nextMode,
       passcode: nextPasscode,
       passcodeVersion: nextVersion,
+      ...(nextPasscodeKind ? { passcodeKind: nextPasscodeKind } : {}),
       secretaryIdleMinutes: nextSecretaryIdle,
       viewerIdleMinutes: nextViewerIdle,
       updatedAt: new Date().toISOString()

@@ -648,6 +648,7 @@
         "mode": { "type": "string", "enum": ["open", "passcode"] },
         "passcode": { "type": "string", "maxLength": 6 },
         "passcodeVersion": { "type": "number" },
+        "passcodeKind": { "type": "string", "enum": ["random", "custom"] },
         "secretaryIdleMinutes": { "type": "number" },
         "viewerIdleMinutes": { "type": "number" },
         "updatedAt": { "type": "string" }

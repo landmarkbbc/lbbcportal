@@ -31,12 +31,14 @@ export interface AppSettings {
 
 export type UserRole = 'secretary' | 'viewer' | null;
 export type ViewerAccessMode = 'open' | 'passcode';
+export type ViewerPasscodeKind = 'random' | 'custom';
 export type IdleTimeoutMinutes = 0 | 15 | 30 | 60 | 120;
 
 export interface ViewerSettings {
   mode: ViewerAccessMode;
   passcode: string;
   passcodeVersion: number;
+  passcodeKind?: ViewerPasscodeKind;
   secretaryIdleMinutes?: IdleTimeoutMinutes;
   viewerIdleMinutes?: IdleTimeoutMinutes;
   updatedAt?: string;
