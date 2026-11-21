@@ -29,6 +29,15 @@
           "type": "number",
           "description": "Optional Viewer Home hero image brightness percentage (30-130, default 100)"
         },
+        "lessonsHeroBrightness": {
+          "type": "number",
+          "description": "Optional Viewer Lessons hero image brightness percentage (30-130, default 100)"
+        },
+        "lessonsDriveFolderLink": {
+          "type": "string",
+          "description": "Optional https Google Drive folder link for browsing all lessons",
+          "maxLength": 500
+        },
         "theme": {
           "type": "string",
           "description": "Base theme mode: white, dark-gray, dark",
@@ -636,6 +645,8 @@
         "showDailyVerse": { "type": "boolean" },
         "facebookLink": { "type": "string", "maxLength": 300 },
         "heroBrightness": { "type": "number" },
+        "lessonsHeroBrightness": { "type": "number" },
+        "lessonsDriveFolderLink": { "type": "string", "maxLength": 500 },
         "initialAccountCreated": { "type": "boolean" },
         "viewerMode": { "type": "string", "enum": ["open", "passcode"] },
         "viewerPasscodeConfigured": { "type": "boolean" },
@@ -710,6 +721,38 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "title", "message", "pinned", "createdAt", "updatedAt"]
+    },
+    "PortalPastorsHeart": {
+      "title": "PortalPastorsHeart",
+      "description": "Published Sunday Pastor's Heart message displayed on public Viewer Home",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 10, "maxLength": 10, "description": "Sunday date YYYY-MM-DD (matches document ID)" },
+        "sundayDate": { "type": "string", "minLength": 10, "maxLength": 10, "description": "Sunday date YYYY-MM-DD" },
+        "body": { "type": "string", "minLength": 1, "maxLength": 3000 },
+        "lessonPassage": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "sundayDate", "body", "createdAt", "updatedAt"]
+    },
+    "PortalLesson": {
+      "title": "PortalLesson",
+      "description": "Sunday school lesson archive entry with date, title, optional Google Drive/Docs link, optional sanitized lesson body HTML, optional source tracking, and optional note",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sundayDate": { "type": "string", "minLength": 10, "maxLength": 10, "description": "Sunday date YYYY-MM-DD" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "driveUrl": { "type": "string", "minLength": 24, "maxLength": 500, "pattern": "^https://(drive|docs)\\.google\\.com/.*" },
+        "note": { "type": "string", "maxLength": 200 },
+        "bodyHtml": { "type": "string", "minLength": 1, "maxLength": 40000 },
+        "source": { "type": "string", "enum": ["lessonMaker", "manual"] },
+        "sourceLessonId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "sundayDate", "title", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -736,6 +779,14 @@
     "/announcements/{announcementId}": {
       "schema": "Announcement",
       "description": "Church announcements readable by unlocked viewers and managed by the Secretary"
+    },
+    "/portal_pastors_heart/{sundayDate}": {
+      "schema": "PortalPastorsHeart",
+      "description": "Published Pastor's Heart Sunday messages readable by unlocked viewers and managed by the Secretary"
+    },
+    "/portal_lessons/{lessonId}": {
+      "schema": "PortalLesson",
+      "description": "Sunday school lesson library entries readable by unlocked viewers and managed by the Secretary"
     },
     "/schedules/{scheduleId}": {
       "schema": "Schedule",

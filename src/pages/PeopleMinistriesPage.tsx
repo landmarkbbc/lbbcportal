@@ -1377,7 +1377,7 @@ export const PeopleMinistriesPage: React.FC = () => {
                   return (
                     <div
                       key={person.id}
-                      className={`p-4 bg-surface border border-subtle space-y-2.5 viewer-card ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}
+                      className={`p-4 space-y-2.5 ${isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl shadow-card'}`}
                     >
                       {/* Card Header: Name + Badges + Actions */}
                       <div className="flex items-start justify-between gap-2">

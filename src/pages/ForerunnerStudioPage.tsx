@@ -23,7 +23,8 @@ import {
   Sparkles,
   Edit2,
   Newspaper,
-  Minus
+  Minus,
+  Send
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { ForerunnerLesson, ForerunnerLessonStatus } from '../types';
@@ -33,6 +34,7 @@ import { ForerunnerSettingsModal } from '../components/ForerunnerSettingsModal';
 import { ForerunnerEditor } from '../components/ForerunnerEditor';
 import { ForerunnerPreview } from '../components/ForerunnerPreview';
 import { ForerunnerBulletinMaker } from '../components/ForerunnerBulletinMaker';
+import { PostLessonToPortalModal } from '../components/PostLessonToPortalModal';
 import { DocxSourcePanel, WordFileSourceMode } from '../components/DocxSourcePanel';
 import { formatAndSplitLesson } from '../lib/lessonFormatter';
 import { generateForerunnerDocx } from '../lib/docxGenerator';
@@ -76,11 +78,15 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
     forerunnerSettings,
     forerunnerBulletins,
     forerunnerAsset,
+    portalLessons,
     addForerunnerLesson,
     updateForerunnerLesson,
     deleteForerunnerLesson,
     updateForerunnerSettings,
     resetForerunnerSettings,
+    addPortalLesson,
+    updatePortalLesson,
+    deletePortalLesson,
     trackBusyOperation,
     dataLoading
   } = useData();
@@ -117,6 +123,12 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
   const [savingMode, setSavingMode] = useState<ForerunnerLessonStatus | null>(null);
   const isSaving = savingMode !== null;
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Post to Portal modal & state
+  const [pendingSourceLessonId, setPendingSourceLessonId] = useState<string>('');
+  const [isPostPortalModalOpen, setIsPostPortalModalOpen] = useState(false);
+  const [isRemovePortalConfirmOpen, setIsRemovePortalConfirmOpen] = useState(false);
+  const [isRemovingFromPortal, setIsRemovingFromPortal] = useState(false);
 
   // "Keep series title" switch (ON by default)
   const [keepSeriesTitle, setKeepSeriesTitle] = useState<boolean>(true);
@@ -171,6 +183,7 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
   const startNewLesson = () => {
     setIsCreatingNew(true);
     setActiveLesson(null);
+    setPendingSourceLessonId('flesson_' + Math.random().toString(36).substring(2, 10));
     setSeriesTitle(forerunnerSettings.lastUsedSeriesTitle || '');
     setKeepSeriesTitle(true);
     setPassage('');
@@ -187,6 +200,7 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
   const openLesson = (lesson: ForerunnerLesson) => {
     setActiveLesson(lesson);
     setIsCreatingNew(false);
+    setPendingSourceLessonId('');
     setSeriesTitle(lesson.seriesTitle || forerunnerSettings.lastUsedSeriesTitle || '');
     setKeepSeriesTitle(true);
     setPassage(lesson.passage || '');
@@ -202,8 +216,15 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
   const closeLessonView = () => {
     setActiveLesson(null);
     setIsCreatingNew(false);
+    setPendingSourceLessonId('');
     setPhotos([]);
   };
+
+  const currentSourceLessonId = activeLesson?.id || pendingSourceLessonId;
+  const existingPortalLesson = useMemo(() => {
+    if (!currentSourceLessonId) return null;
+    return portalLessons.find(l => l.sourceLessonId === currentSourceLessonId) || null;
+  }, [portalLessons, currentSourceLessonId]);
 
   // Compute 1.5-page split and font fitting
   const splitResult = useMemo(() => {
@@ -413,6 +434,47 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
       setDownloadError(err?.message || 'Failed to generate Word (.docx) file.');
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleConfirmPostToPortal = async (payload: {
+    sundayDate: string;
+    title: string;
+    driveUrl?: string;
+    bodyHtml: string;
+    source: 'lessonMaker';
+    sourceLessonId: string;
+  }) => {
+    if (existingPortalLesson) {
+      await updatePortalLesson(existingPortalLesson.id, {
+        sundayDate: payload.sundayDate,
+        title: payload.title,
+        driveUrl: payload.driveUrl ?? '',
+        bodyHtml: payload.bodyHtml,
+        source: 'lessonMaker',
+        sourceLessonId: payload.sourceLessonId,
+      });
+    } else {
+      await addPortalLesson({
+        sundayDate: payload.sundayDate,
+        title: payload.title,
+        driveUrl: payload.driveUrl,
+        bodyHtml: payload.bodyHtml,
+        source: 'lessonMaker',
+        sourceLessonId: payload.sourceLessonId,
+      });
+    }
+  };
+
+  const handleConfirmRemoveFromPortal = async () => {
+    if (!existingPortalLesson || isRemovingFromPortal) return;
+    const targetId = existingPortalLesson.id;
+    setIsRemovingFromPortal(true);
+    try {
+      await deletePortalLesson(targetId);
+      setIsRemovePortalConfirmOpen(false);
+    } finally {
+      setIsRemovingFromPortal(false);
     }
   };
 
@@ -680,6 +742,30 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
                       </>
                     )}
                   </button>
+
+                  {/* Post / Update on Portal */}
+                  <button
+                    type="button"
+                    disabled={isSaving || isRemovingFromPortal}
+                    onClick={() => setIsPostPortalModalOpen(true)}
+                    className="px-3.5 py-1.5 rounded-xl border border-accent/40 bg-accent-tint hover:bg-accent-tint-strong text-accent text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{existingPortalLesson ? 'Update on Portal' : 'Post to Portal as Latest Lesson'}</span>
+                  </button>
+
+                  {/* Remove from Portal when already posted */}
+                  {existingPortalLesson && (
+                    <button
+                      type="button"
+                      disabled={isRemovingFromPortal}
+                      onClick={() => setIsRemovePortalConfirmOpen(true)}
+                      className="px-3 py-1.5 rounded-xl border border-red-300 dark:border-red-800/70 bg-red-500/10 hover:bg-red-500/15 text-red-700 dark:text-red-300 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove from Portal</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1022,6 +1108,37 @@ export const ForerunnerStudioPage: React.FC<ForerunnerStudioPageProps> = () => {
           onCancel={() => setLessonToDelete(null)}
         />
       )}
+      {/* Post to Portal Confirmation Modal */}
+      <PostLessonToPortalModal
+        isOpen={isPostPortalModalOpen}
+        existingPortalLesson={existingPortalLesson}
+        initialSundayDate={
+          lessonDate && /^\d{4}-\d{2}-\d{2}$/.test(lessonDate)
+            ? lessonDate
+            : existingPortalLesson?.sundayDate || getNextSundayDate()
+        }
+        initialTitle={passage.trim() || existingPortalLesson?.title || ''}
+        contentHtml={contentHtml}
+        sourceLessonId={currentSourceLessonId}
+        onConfirmPost={handleConfirmPostToPortal}
+        onClose={() => setIsPostPortalModalOpen(false)}
+      />
+
+      {/* Remove from Portal Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isRemovePortalConfirmOpen}
+        title="Remove from Portal"
+        message={
+          existingPortalLesson
+            ? `Remove "${existingPortalLesson.title}" (${formatDate(existingPortalLesson.sundayDate)}) from the public Lessons portal? This lesson will stay saved in Lesson Maker.`
+            : ''
+        }
+        confirmLabel="Remove from Portal"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={handleConfirmRemoveFromPortal}
+        onCancel={() => setIsRemovePortalConfirmOpen(false)}
+      />
     </div>
   );
 };

@@ -18,6 +18,8 @@ export interface AppSettings {
   homeWelcomeLine?: string;
   homeIntroText?: string;
   heroBrightness?: number;
+  lessonsHeroBrightness?: number;
+  lessonsDriveFolderLink?: string;
   clockStyle?: ClockStyle;
   clockColor?: ClockColor;
   showDailyVerse?: boolean;
@@ -52,6 +54,8 @@ export interface PublicBranding {
   homeWelcomeLine?: string;
   homeIntroText?: string;
   heroBrightness?: number;
+  lessonsHeroBrightness?: number;
+  lessonsDriveFolderLink?: string;
   theme?: ThemeBase;
   colorScheme?: ColorScheme;
   accentColor: AccentColor;
@@ -518,6 +522,30 @@ export interface Announcement {
   message: string;
   pinned: boolean;
   showUntil?: string; // Optional YYYY-MM-DD local date string (active through end of this date)
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PortalPastorsHeart {
+  id: string; // Sunday date YYYY-MM-DD (matches document ID and sundayDate)
+  sundayDate: string; // YYYY-MM-DD
+  body: string; // Plain text, 1..3000 chars, paragraph breaks preserved
+  lessonPassage?: string; // Optional lesson passage label, max 120 chars
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PortalLessonSource = 'lessonMaker' | 'manual';
+
+export interface PortalLesson {
+  id: string;
+  sundayDate: string; // YYYY-MM-DD
+  title: string; // 1..120 chars
+  driveUrl?: string; // Optional https://drive.google.com/... or https://docs.google.com/..., max 500 chars
+  note?: string; // Optional note, max 200 chars
+  bodyHtml?: string; // Optional sanitized lesson HTML, up to 40000 chars
+  source?: PortalLessonSource; // 'lessonMaker' or 'manual' (missing treated as 'manual')
+  sourceLessonId?: string; // Optional ForerunnerLesson ID, max 100 chars
   createdAt: string;
   updatedAt: string;
 }

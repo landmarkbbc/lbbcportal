@@ -103,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
   // Group active checks
   const isServicesActive = isViewer
     ? currentTab === 'schedules'
-    : currentTab === 'regular-services' || currentTab === 'schedules' || currentTab === 'announcements';
+    : currentTab === 'regular-services' || currentTab === 'schedules' || currentTab === 'announcements' || currentTab === 'portal-lessons';
   const isPeopleActive = currentTab === 'people-ministries' || currentTab === 'visitors';
   const isTasksActive =
     currentTab === 'tasks' ||
@@ -285,6 +285,17 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
                   >
                     <Megaphone className="w-4 h-4 text-accent" />
                     <span>Announcements</span>
+                  </button>
+                  <button
+                    onClick={() => handleNavClick('portal-lessons')}
+                    className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2.5 transition-colors cursor-pointer ${
+                      currentTab === 'portal-lessons'
+                        ? 'bg-accent-tint text-accent font-semibold'
+                        : 'text-sec hover:text-main hover:bg-surface-hover'
+                    }`}
+                  >
+                    <BookOpen className="w-4 h-4 text-accent" />
+                    <span>Lessons</span>
                   </button>
                 </div>
               )}
@@ -677,6 +688,14 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
                   }`}
                 >
                   Announcements
+                </button>
+                <button
+                  onClick={() => handleNavClick('portal-lessons')}
+                  className={`w-full text-left py-2 px-3 rounded-md text-sm transition-colors ${
+                    currentTab === 'portal-lessons' ? 'text-accent font-semibold bg-accent-tint/50' : 'text-sec hover:bg-surface-hover'
+                  }`}
+                >
+                  Lessons
                 </button>
               </div>
             )}

@@ -24,6 +24,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage, compressBannerImage, compressLoginBackgroundImage } from '../lib/imageCompressor';
 import { clampHeroBrightness } from '../lib/brandingCache';
+import { validateLessonsDriveFolderUrl } from '../lib/portalLessons';
 import {
   THEME_CATALOGUE,
   ACCENT_CATALOGUE,
@@ -48,6 +49,8 @@ export const SettingsPage: React.FC = () => {
     updateSettings,
     bannerImage,
     updateBannerImage,
+    lessonsBannerImage,
+    updateLessonsBannerImage,
     loginBackground,
     updateLoginBackground,
     viewerSettings,
@@ -71,6 +74,14 @@ export const SettingsPage: React.FC = () => {
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
   const savedHeroBrightness = clampHeroBrightness(settings.heroBrightness);
   const [heroBrightnessDraft, setHeroBrightnessDraft] = useState<number>(savedHeroBrightness);
+
+  const [lessonsBannerUploading, setLessonsBannerUploading] = useState(false);
+  const [lessonsBannerError, setLessonsBannerError] = useState<string | null>(null);
+  const lessonsBannerFileInputRef = useRef<HTMLInputElement>(null);
+  const savedLessonsHeroBrightness = clampHeroBrightness(settings.lessonsHeroBrightness);
+  const [lessonsHeroBrightnessDraft, setLessonsHeroBrightnessDraft] = useState<number>(savedLessonsHeroBrightness);
+  const [lessonsDriveFolderInput, setLessonsDriveFolderInput] = useState(settings.lessonsDriveFolderLink || '');
+  const [lessonsDriveFolderError, setLessonsDriveFolderError] = useState<string | null>(null);
 
   const [loginBgUploading, setLoginBgUploading] = useState(false);
   const [loginBgError, setLoginBgError] = useState<string | null>(null);
@@ -121,6 +132,14 @@ export const SettingsPage: React.FC = () => {
   useEffect(() => {
     setHeroBrightnessDraft(clampHeroBrightness(settings.heroBrightness));
   }, [settings.heroBrightness]);
+
+  useEffect(() => {
+    setLessonsHeroBrightnessDraft(clampHeroBrightness(settings.lessonsHeroBrightness));
+  }, [settings.lessonsHeroBrightness]);
+
+  useEffect(() => {
+    setLessonsDriveFolderInput(settings.lessonsDriveFolderLink || '');
+  }, [settings.lessonsDriveFolderLink]);
 
   // Facebook link validation and save
   const handleFacebookBlur = () => {
@@ -323,6 +342,64 @@ export const SettingsPage: React.FC = () => {
     setHeroBrightnessDraft(100);
     if (settings.heroBrightness !== 100) {
       await updateSettings({ heroBrightness: 100 });
+    }
+  };
+
+  // Lessons hero image upload/replace/remove (stored & compressed identically to Home Banner)
+  const handleLessonsBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLessonsBannerUploading(true);
+    setLessonsBannerError(null);
+    try {
+      const { dataUrl, sizeKb, isTooLarge } = await compressBannerImage(file);
+      if (isTooLarge) {
+        setLessonsBannerError(`Image is still too large (${sizeKb} KB after compression). Please select a photo under 600 KB.`);
+        return;
+      }
+      await updateLessonsBannerImage(dataUrl);
+    } catch (err) {
+      console.error('Failed to compress/save lessons banner:', err);
+      setLessonsBannerError('Failed to process image. Please try another image.');
+    } finally {
+      setLessonsBannerUploading(false);
+      if (lessonsBannerFileInputRef.current) lessonsBannerFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveLessonsBanner = async () => {
+    setLessonsBannerError(null);
+    await updateLessonsBannerImage('');
+  };
+
+  const commitLessonsHeroBrightness = async (nextBrightness: number) => {
+    const clamped = clampHeroBrightness(nextBrightness);
+    setLessonsHeroBrightnessDraft(clamped);
+    if (clamped !== savedLessonsHeroBrightness) {
+      await updateSettings({ lessonsHeroBrightness: clamped });
+    }
+  };
+
+  const handleResetLessonsHeroBrightness = async () => {
+    setLessonsHeroBrightnessDraft(100);
+    if (settings.lessonsHeroBrightness !== 100 && settings.lessonsHeroBrightness !== undefined) {
+      await updateSettings({ lessonsHeroBrightness: 100 });
+    }
+  };
+
+  const handleLessonsDriveFolderBlur = () => {
+    const result = validateLessonsDriveFolderUrl(lessonsDriveFolderInput);
+    if (!result.valid) {
+      setLessonsDriveFolderError(
+        result.error || 'Please enter a valid Google Drive link starting with https://drive.google.com/.'
+      );
+      return;
+    }
+    setLessonsDriveFolderError(null);
+    setLessonsDriveFolderInput(result.normalized);
+    if (result.normalized !== (settings.lessonsDriveFolderLink || '')) {
+      updateSettings({ lessonsDriveFolderLink: result.normalized });
     }
   };
 
@@ -800,6 +877,219 @@ export const SettingsPage: React.FC = () => {
                 <span>{bannerError}</span>
               </p>
             )}
+          </div>
+
+          {/* Lessons Hero Image, Brightness & Drive Folder Link */}
+          <div className="sm:col-span-2 pt-4 border-t border-subtle space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-main uppercase tracking-wider flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-accent" />
+                  <span>Lessons Hero Image</span>
+                </label>
+                {lessonsBannerImage && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveLessonsBanner}
+                    className="text-xs text-red-600 dark:text-red-400 hover:underline flex items-center gap-1 cursor-pointer font-medium"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove Image</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Lessons Hero Live Preview */}
+              <div className="relative overflow-hidden rounded-2xl border border-subtle h-36 sm:h-44 w-full bg-subtle flex items-center justify-center">
+                {lessonsBannerImage ? (
+                  <>
+                    <img
+                      src={lessonsBannerImage}
+                      alt="Lessons Hero Preview"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                      style={{ filter: `brightness(${lessonsHeroBrightnessDraft}%)` }}
+                    />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center pointer-events-none">
+                      <span
+                        className="text-white text-base sm:text-lg font-bold tracking-tight line-clamp-1"
+                        style={{
+                          textShadow: '0 2px 16px rgba(0, 0, 0, 0.55), 0 1px 4px rgba(0, 0, 0, 0.45)',
+                        }}
+                      >
+                        Sunday School Corner
+                      </span>
+                      <span
+                        className="text-white/95 text-xs mt-0.5 line-clamp-1"
+                        style={{
+                          textShadow: '0 1px 12px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.45)',
+                        }}
+                      >
+                        Lessons to read, study, and download.
+                      </span>
+                    </div>
+                    <div className="absolute bottom-2.5 left-3 pointer-events-none">
+                      <span className="text-white text-[11px] font-semibold px-2 py-0.5 rounded bg-black/55 backdrop-blur-xs">
+                        Live Hero Preview · {lessonsHeroBrightnessDraft}%
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div
+                    className="w-full h-full flex flex-col items-center justify-center p-6 text-white text-center relative"
+                    style={{
+                      background:
+                        'linear-gradient(135deg, var(--accent-gradient-start) 0%, var(--accent-gradient-end) 100%)',
+                    }}
+                  >
+                    <span
+                      className="text-white text-base sm:text-lg font-bold tracking-tight"
+                      style={{
+                        textShadow: '0 2px 16px rgba(0, 0, 0, 0.35), 0 1px 4px rgba(0, 0, 0, 0.25)',
+                      }}
+                    >
+                      Sunday School Corner
+                    </span>
+                    <span className="text-white/90 text-xs mt-1">
+                      Accent gradient fallback (no custom image set)
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
+                <input
+                  type="file"
+                  ref={lessonsBannerFileInputRef}
+                  onChange={handleLessonsBannerUpload}
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  disabled={lessonsBannerUploading}
+                  onClick={() => lessonsBannerFileInputRef.current?.click()}
+                  className="px-3.5 py-2 rounded-xl border border-subtle bg-surface hover:bg-surface-hover text-sec text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  {lessonsBannerUploading ? (
+                    <>
+                      <Spinner size="xs" variant="accent" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-3.5 h-3.5 text-accent" />
+                      <span>{lessonsBannerImage ? 'Replace Lessons Hero Image' : 'Upload Lessons Hero Image'}</span>
+                    </>
+                  )}
+                </button>
+                <span className="text-[11px] text-mut">
+                  Stored in its own document. Automatically compressed (max 1600px wide, ~0.75 JPEG, under 600 KB).
+                </span>
+              </div>
+
+              {/* Lessons Hero Brightness Slider (30% to 130% in 5% steps, default 100%) */}
+              <div className="max-w-md space-y-1.5 pt-2">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <label htmlFor="lessons-hero-image-brightness" className="font-semibold text-main">
+                    Lessons hero brightness
+                  </label>
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className="font-semibold text-sec tabular-nums">{lessonsHeroBrightnessDraft}%</span>
+                    <button
+                      type="button"
+                      onClick={handleResetLessonsHeroBrightness}
+                      disabled={lessonsHeroBrightnessDraft === 100 && savedLessonsHeroBrightness === 100}
+                      className="text-xs font-medium text-accent hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline disabled:cursor-default"
+                    >
+                      Reset to 100%
+                    </button>
+                  </div>
+                </div>
+                <input
+                  id="lessons-hero-image-brightness"
+                  type="range"
+                  min={30}
+                  max={130}
+                  step={5}
+                  value={lessonsHeroBrightnessDraft}
+                  onChange={(e) => setLessonsHeroBrightnessDraft(clampHeroBrightness(Number(e.target.value)))}
+                  onPointerUp={(e) => commitLessonsHeroBrightness(Number((e.target as HTMLInputElement).value))}
+                  onKeyUp={(e) => commitLessonsHeroBrightness(Number((e.target as HTMLInputElement).value))}
+                  onBlur={(e) => commitLessonsHeroBrightness(Number((e.target as HTMLInputElement).value))}
+                  className="w-full accent-[var(--accent-base)] cursor-pointer"
+                />
+                <div className="flex items-center justify-between text-[11px] text-mut">
+                  <span>30% (Darker)</span>
+                  <span>100% (Original)</span>
+                  <span>130% (Brighter)</span>
+                </div>
+                <p className="text-[11px] text-mut">
+                  Adjusts the Viewer Lessons hero photo brightness only; hero text stays at full clarity.
+                </p>
+              </div>
+
+              {lessonsBannerError && (
+                <p className="text-xs text-red-500 flex items-center gap-1.5 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{lessonsBannerError}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Lessons Google Drive folder link (optional) */}
+            <div className="pt-2">
+              <label
+                htmlFor="lessons-drive-folder-link"
+                className="block text-xs font-semibold text-main uppercase tracking-wider mb-1.5"
+              >
+                Lessons Google Drive folder link (optional)
+              </label>
+              <div className="relative">
+                <input
+                  id="lessons-drive-folder-link"
+                  type="url"
+                  value={lessonsDriveFolderInput}
+                  onChange={(e) => {
+                    setLessonsDriveFolderInput(e.target.value);
+                    if (lessonsDriveFolderError) setLessonsDriveFolderError(null);
+                  }}
+                  onBlur={handleLessonsDriveFolderBlur}
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  className={`w-full px-3.5 py-2.5 pr-16 rounded-xl border bg-field text-main text-sm focus:outline-none focus:ring-2 ${
+                    lessonsDriveFolderError
+                      ? 'border-red-500 focus:ring-red-400/40 focus:border-red-500'
+                      : 'border-subtle focus:ring-accent/40 focus:border-accent'
+                  }`}
+                />
+                {lessonsDriveFolderInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLessonsDriveFolderInput('');
+                      setLessonsDriveFolderError(null);
+                      if (settings.lessonsDriveFolderLink) {
+                        updateSettings({ lessonsDriveFolderLink: '' });
+                      }
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-mut hover:text-main px-2 py-1 rounded bg-subtle/50 hover:bg-subtle transition-colors cursor-pointer"
+                    title="Clear Lessons Google Drive folder link"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {lessonsDriveFolderError ? (
+                <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{lessonsDriveFolderError}</span>
+                </p>
+              ) : (
+                <span className="text-xs text-mut mt-1.5 block">
+                  Optional link shown on the public Lessons page to browse the full Google Drive folder.
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Viewer Home Hero & Intro Copy (optional) */}

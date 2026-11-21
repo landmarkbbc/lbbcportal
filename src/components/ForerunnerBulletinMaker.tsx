@@ -22,7 +22,8 @@ import {
   BookOpen,
   HelpCircle,
   X,
-  RefreshCw
+  RefreshCw,
+  Send
 } from 'lucide-react';
 import { Spinner } from './LoadingIndicator';
 import { useData } from '../context/DataContext';
@@ -104,6 +105,9 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
     saveForerunnerAsset,
     saveForerunnerBulletin,
     deleteForerunnerBulletin,
+    portalPastorsHeart,
+    publishPastorsHeart,
+    removePastorsHeart,
     trackBusyOperation
   } = useData();
 
@@ -152,6 +156,12 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
   const [previousPastorText, setPreviousPastorText] = useState<string | null>(null);
   const [pendingAiDraft, setPendingAiDraft] = useState<string | null>(null);
 
+  // Portal publishing state (independent of bulletin drafts & Word downloads)
+  const [isPublishConfirmOpen, setIsPublishConfirmOpen] = useState<boolean>(false);
+  const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState<boolean>(false);
+  const [isPortalActionSaving, setIsPortalActionSaving] = useState<boolean>(false);
+  const [portalActionError, setPortalActionError] = useState<string | null>(null);
+
   // Selected YYYY-MM key and saved birthday list for the same month
   const selectedMonthKey = useMemo(() => (selectedDate || '').slice(0, 7), [selectedDate]);
   const sameMonthSavedBulletin = useMemo(() => {
@@ -186,6 +196,72 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
   const matchingLesson = useMemo(() => {
     return forerunnerLessons.find(l => l.lessonDate === selectedDate) || null;
   }, [forerunnerLessons, selectedDate]);
+
+  // Published Portal Pastor's Heart state for the selected Sunday
+  const publishedForDate = useMemo(() => {
+    return portalPastorsHeart.find(p => p.sundayDate === selectedDate || p.id === selectedDate) || null;
+  }, [portalPastorsHeart, selectedDate]);
+
+  const cleanPastorBody = useMemo(
+    () => pastorHeartText.replace(/\r\n/g, '\n').trim(),
+    [pastorHeartText]
+  );
+
+  const portalLessonPassage = useMemo(
+    () => (matchingLesson?.passage || '').trim().slice(0, 120),
+    [matchingLesson]
+  );
+
+  const isPastorBodyEmpty = cleanPastorBody.length === 0;
+  const isPastorBodyTooLong = cleanPastorBody.length > 3000;
+
+  const openPublishConfirmModal = () => {
+    if (isPastorBodyEmpty) return;
+    setPortalActionError(null);
+    setIsPublishConfirmOpen(true);
+  };
+
+  const openRemoveConfirmModal = () => {
+    if (!publishedForDate) return;
+    setPortalActionError(null);
+    setIsRemoveConfirmOpen(true);
+  };
+
+  const handleConfirmPublishToPortal = async () => {
+    if (isPastorBodyEmpty || isPastorBodyTooLong || isPortalActionSaving) return;
+    setIsPortalActionSaving(true);
+    setPortalActionError(null);
+    try {
+      await trackBusyOperation(async () => {
+        await publishPastorsHeart({
+          sundayDate: selectedDate,
+          body: cleanPastorBody,
+          lessonPassage: portalLessonPassage || undefined,
+        });
+      });
+      setIsPublishConfirmOpen(false);
+    } catch (err: any) {
+      setPortalActionError(err?.message || "Failed to publish Pastor's Heart to the portal.");
+    } finally {
+      setIsPortalActionSaving(false);
+    }
+  };
+
+  const handleConfirmRemoveFromPortal = async () => {
+    if (!publishedForDate || isPortalActionSaving) return;
+    setIsPortalActionSaving(true);
+    setPortalActionError(null);
+    try {
+      await trackBusyOperation(async () => {
+        await removePastorsHeart(selectedDate);
+      });
+      setIsRemoveConfirmOpen(false);
+    } catch (err: any) {
+      setPortalActionError(err?.message || "Failed to remove Pastor's Heart from the portal.");
+    } finally {
+      setIsPortalActionSaving(false);
+    }
+  };
 
   // Load existing bulletin for selected date, or initialize defaults
   useEffect(() => {
@@ -229,6 +305,7 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
     setHasAiResult(false);
     setAiError(null);
     setShowGithubAiNotice(false);
+    setPortalActionError(null);
   }, [selectedDate, forerunnerBulletins, matchingLesson, keepMonthBirthdays, sameMonthSavedBulletin]);
 
   // Handle uploading background picture
@@ -827,6 +904,49 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
           </div>
         </div>
 
+        {/* Pastor's Heart -> Public Viewer Portal Bar */}
+        <div className="px-3 py-2.5 rounded-xl bg-canvas border border-subtle flex items-center justify-between flex-wrap gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <span className="font-semibold text-main">Pastor&apos;s Heart on Portal:</span>
+            {publishedForDate ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 text-[11px] font-semibold">
+                <CheckCircle2 className="w-3 h-3" />
+                <span>Published for {formatSundayBulletinDate(selectedDate)}</span>
+              </span>
+            ) : (
+              <span className="text-[11px] text-mut">Not published for this Sunday</span>
+            )}
+            {isPastorBodyEmpty && (
+              <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                Write the Pastor&apos;s Heart first.
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {publishedForDate && (
+              <button
+                type="button"
+                onClick={openRemoveConfirmModal}
+                disabled={isPortalActionSaving}
+                className="px-2.5 py-1.5 rounded-xl border border-red-200 dark:border-red-900/60 bg-surface hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Remove from Portal</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={openPublishConfirmModal}
+              disabled={isPastorBodyEmpty || isPortalActionSaving}
+              className="px-3 py-1.5 rounded-xl bg-accent hover:opacity-95 text-accent-contrast text-xs font-semibold shadow-2xs transition-opacity flex items-center gap-1.5 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{publishedForDate ? 'Update on Portal' : 'Publish to Portal'}</span>
+            </button>
+          </div>
+        </div>
+
         {/* Scaled Page 2 Canvas Container */}
         <div
           data-no-motion="true"
@@ -1280,7 +1400,37 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex items-center justify-between flex-wrap gap-2.5 pt-2 border-t border-subtle">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={openPublishConfirmModal}
+                    disabled={isPastorBodyEmpty || isPortalActionSaving}
+                    className="px-3 py-2 rounded-xl border border-accent/30 bg-accent-tint text-accent hover:opacity-90 font-semibold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{publishedForDate ? 'Update on Portal' : 'Publish to Portal'}</span>
+                  </button>
+
+                  {publishedForDate && (
+                    <button
+                      type="button"
+                      onClick={openRemoveConfirmModal}
+                      disabled={isPortalActionSaving}
+                      className="px-2.5 py-2 rounded-xl border border-red-200 dark:border-red-900/60 bg-surface hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 font-semibold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove from Portal</span>
+                    </button>
+                  )}
+
+                  {isPastorBodyEmpty && (
+                    <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                      Write the Pastor&apos;s Heart first.
+                    </span>
+                  )}
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setActiveEditBox(null)}
@@ -1633,6 +1783,158 @@ export const ForerunnerBulletinMaker: React.FC<ForerunnerBulletinMakerProps> = (
                   Done
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= CONFIRMATION MODAL: PUBLISH / UPDATE PASTOR'S HEART TO PORTAL ================= */}
+      {isPublishConfirmOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/55 backdrop-blur-xs animate-in fade-in duration-100">
+          <div className="relative w-full max-w-lg bg-surface border border-subtle rounded-2xl shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-150 text-main max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-subtle">
+              <div>
+                <h3 className="font-bold text-sm text-main">
+                  {publishedForDate ? "Update Pastor's Heart on Portal?" : "Publish Pastor's Heart to Portal?"}
+                </h3>
+                <p className="text-[11px] text-mut mt-0.5">
+                  Preview of what church members will see on the public Viewer Home page:
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPublishConfirmOpen(false)}
+                disabled={isPortalActionSaving}
+                className="p-1 rounded-lg text-sec hover:text-main cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Preview Box (Members see ONLY date, optional Lesson passage, and plain-text body) */}
+            <div className="p-4 rounded-xl bg-canvas border border-subtle space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-main">
+                  <Calendar className="w-3.5 h-3.5 text-accent" />
+                  <span>{formatSundayBulletinDate(selectedDate)}</span>
+                </span>
+                {portalLessonPassage && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-accent-tint text-accent text-xs font-semibold border border-accent/20">
+                    Lesson: {portalLessonPassage}
+                  </span>
+                )}
+              </div>
+
+              <p className="text-sm text-sec leading-relaxed whitespace-pre-wrap break-words">
+                {cleanPastorBody}
+              </p>
+            </div>
+
+            {isPastorBodyTooLong && (
+              <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  This message is {cleanPastorBody.length} characters, which exceeds the 3,000-character portal limit. Please shorten it first.
+                </span>
+              </div>
+            )}
+
+            {portalActionError && (
+              <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{portalActionError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsPublishConfirmOpen(false)}
+                disabled={isPortalActionSaving}
+                className="px-3.5 py-2 rounded-xl border border-subtle bg-surface hover:bg-subtle text-sec hover:text-main text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPublishToPortal}
+                disabled={isPastorBodyEmpty || isPastorBodyTooLong || isPortalActionSaving}
+                className="px-4 py-2 rounded-xl bg-accent hover:opacity-95 text-accent-contrast text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isPortalActionSaving ? (
+                  <>
+                    <Spinner size="xs" variant="contrast" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{publishedForDate ? 'Confirm & Update' : 'Confirm & Publish'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= CONFIRMATION MODAL: REMOVE PASTOR'S HEART FROM PORTAL ================= */}
+      {isRemoveConfirmOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/55 backdrop-blur-xs animate-in fade-in duration-100">
+          <div className="relative w-full max-w-md bg-surface border border-subtle rounded-2xl shadow-2xl p-5 space-y-4 animate-in zoom-in-95 duration-150 text-main">
+            <div className="flex items-center justify-between pb-2 border-b border-subtle">
+              <h3 className="font-bold text-sm text-main">
+                Remove Pastor&apos;s Heart from Portal?
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsRemoveConfirmOpen(false)}
+                disabled={isPortalActionSaving}
+                className="p-1 rounded-lg text-sec hover:text-main cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-sec leading-relaxed">
+              This will remove the published message for{' '}
+              <strong className="text-main">{formatSundayBulletinDate(selectedDate)}</strong> from the public Viewer Home page. Your bulletin draft in Bulletin Maker will stay untouched.
+            </p>
+
+            {portalActionError && (
+              <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{portalActionError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsRemoveConfirmOpen(false)}
+                disabled={isPortalActionSaving}
+                className="px-3.5 py-2 rounded-xl border border-subtle bg-surface hover:bg-subtle text-sec hover:text-main text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemoveFromPortal}
+                disabled={isPortalActionSaving}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isPortalActionSaving ? (
+                  <>
+                    <Spinner size="xs" variant="contrast" />
+                    <span>Removing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove from Portal</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

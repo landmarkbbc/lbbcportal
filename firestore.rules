@@ -115,6 +115,89 @@ service cloud.firestore {
         data.updatedAt.size() <= 64;
     }
 
+    function isValidPortalPastorsHeart(data) {
+      return data.keys().hasAll(['id', 'sundayDate', 'body', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'sundayDate', 'body', 'lessonPassage', 'createdAt', 'updatedAt']) &&
+        data.id is string &&
+        data.id.size() == 10 &&
+        data.id.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        data.sundayDate is string &&
+        data.sundayDate.size() == 10 &&
+        data.sundayDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        data.body is string &&
+        data.body.size() >= 1 &&
+        data.body.size() <= 3000 &&
+        (!('lessonPassage' in data) || (
+          data.lessonPassage is string &&
+          data.lessonPassage.size() <= 120
+        )) &&
+        data.createdAt is string &&
+        data.createdAt.size() > 0 &&
+        data.createdAt.size() <= 64 &&
+        data.updatedAt is string &&
+        data.updatedAt.size() > 0 &&
+        data.updatedAt.size() <= 64;
+    }
+
+    function isValidPortalLesson(data) {
+      return data.keys().hasAll(['id', 'sundayDate', 'title', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'id',
+          'sundayDate',
+          'title',
+          'driveUrl',
+          'note',
+          'bodyHtml',
+          'source',
+          'sourceLessonId',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id is string &&
+        data.id.size() > 0 &&
+        data.id.size() <= 150 &&
+        data.sundayDate is string &&
+        data.sundayDate.size() == 10 &&
+        data.sundayDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        data.title is string &&
+        data.title.size() >= 1 &&
+        data.title.size() <= 120 &&
+        (!('driveUrl' in data) || (
+          data.driveUrl is string &&
+          data.driveUrl.size() >= 24 &&
+          data.driveUrl.size() <= 500 &&
+          data.driveUrl.matches('^https://(drive|docs)\\.google\\.com/.*')
+        )) &&
+        (!('bodyHtml' in data) || (
+          data.bodyHtml is string &&
+          data.bodyHtml.size() >= 1 &&
+          data.bodyHtml.size() <= 40000
+        )) &&
+        (
+          ('driveUrl' in data && data.driveUrl is string && data.driveUrl.size() >= 24) ||
+          ('bodyHtml' in data && data.bodyHtml is string && data.bodyHtml.size() >= 1)
+        ) &&
+        (!('note' in data) || (
+          data.note is string &&
+          data.note.size() <= 200
+        )) &&
+        (!('source' in data) || (
+          data.source is string &&
+          data.source in ['lessonMaker', 'manual']
+        )) &&
+        (!('sourceLessonId' in data) || (
+          data.sourceLessonId is string &&
+          data.sourceLessonId.size() >= 1 &&
+          data.sourceLessonId.size() <= 100
+        )) &&
+        data.createdAt is string &&
+        data.createdAt.size() > 0 &&
+        data.createdAt.size() <= 64 &&
+        data.updatedAt is string &&
+        data.updatedAt.size() > 0 &&
+        data.updatedAt.size() <= 64;
+    }
+
     // Health check / connection test document
     match /test/{docId} {
       allow read: if true;
@@ -208,6 +291,40 @@ service cloud.firestore {
         isValidId(announcementId) &&
         isValidAnnouncement(request.resource.data) &&
         request.resource.data.id == announcementId &&
+        request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isSecretary();
+    }
+
+    // Published Sunday Pastor's Heart message (readable by unlocked viewers and Secretary; writable by Secretary only)
+    match /portal_pastors_heart/{sundayDate} {
+      allow read: if isSecretary() || isViewerUnlocked();
+      allow create: if isSecretary() &&
+        isValidId(sundayDate) &&
+        sundayDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        isValidPortalPastorsHeart(request.resource.data) &&
+        request.resource.data.id == sundayDate &&
+        request.resource.data.sundayDate == sundayDate;
+      allow update: if isSecretary() &&
+        isValidId(sundayDate) &&
+        sundayDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        isValidPortalPastorsHeart(request.resource.data) &&
+        request.resource.data.id == sundayDate &&
+        request.resource.data.sundayDate == sundayDate &&
+        request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isSecretary();
+    }
+
+    // Sunday school lessons library (readable by unlocked viewers and Secretary; writable by Secretary only)
+    match /portal_lessons/{lessonId} {
+      allow read: if isSecretary() || isViewerUnlocked();
+      allow create: if isSecretary() &&
+        isValidId(lessonId) &&
+        isValidPortalLesson(request.resource.data) &&
+        request.resource.data.id == lessonId;
+      allow update: if isSecretary() &&
+        isValidId(lessonId) &&
+        isValidPortalLesson(request.resource.data) &&
+        request.resource.data.id == lessonId &&
         request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if isSecretary();
     }

@@ -52,6 +52,7 @@ import { SnoozeModal } from '../components/SnoozeModal';
 import { PageLoading, Spinner } from '../components/LoadingIndicator';
 import { ViewerHero } from '../components/ViewerHero';
 import { ViewerAnnouncementsSection } from '../components/ViewerAnnouncementsSection';
+import { ViewerPastorsHeartSection } from '../components/ViewerPastorsHeartSection';
 import { getReadableViewerTitleColor } from '../lib/colorContrast';
 
 interface HomePageProps {
@@ -1272,6 +1273,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
           5b. ANNOUNCEMENTS (Viewer only, below Upcoming; hidden when empty)
          ========================================================================= */}
       {isViewer && <ViewerAnnouncementsSection />}
+
+      {/* =========================================================================
+          5c. FROM THE PASTOR'S HEART (Viewer only, below Announcements; hidden when empty)
+         ========================================================================= */}
+      {isViewer && <ViewerPastorsHeartSection />}
 
       {/* =========================================================================
           5. NEEDS ATTENTION (Secretary only, below Upcoming)

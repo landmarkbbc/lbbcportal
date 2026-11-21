@@ -39,7 +39,12 @@ export interface AccentDefinition {
 }
 
 export const DEFAULT_THEME_ID: ThemeBase = 'classic';
+export const VIEWER_DARK_THEME_ID: ThemeBase = 'option-2';
 export const DEFAULT_COLOR_SCHEME: ColorScheme = 'dark';
+
+export function resolveViewerThemeId(colorScheme: ColorScheme): ThemeBase {
+  return colorScheme === 'dark' ? VIEWER_DARK_THEME_ID : DEFAULT_THEME_ID;
+}
 
 /**
  * Modular Theme Catalogue — one object per theme with Light & Dark palettes.

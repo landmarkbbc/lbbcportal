@@ -8,6 +8,7 @@ import {
   onSnapshot,
   writeBatch,
   waitForPendingWrites,
+  getDoc,
   getDocs,
   deleteField
 } from 'firebase/firestore';
@@ -20,7 +21,8 @@ import {
   applyThemeToDocument,
   isValidColorScheme,
   isValidThemeId,
-  normalizeAppearance
+  normalizeAppearance,
+  resolveViewerThemeId
 } from '../lib/themes';
 import { useAuth, DEFAULT_PUBLIC_BRANDING } from './AuthContext';
 import {
@@ -61,8 +63,19 @@ import {
   ViewerNote,
   ViewerNoteStatus,
   LoginBackgroundConfig,
-  Announcement
+  Announcement,
+  PortalPastorsHeart,
+  PortalLesson,
+  PortalLessonSource
 } from '../types';
+import {
+  validatePortalLessonDriveUrl,
+  sanitizeLessonBodyHtml,
+  PORTAL_LESSON_TITLE_MAX,
+  PORTAL_LESSON_NOTE_MAX,
+  PORTAL_LESSON_BODY_HTML_MAX,
+  PORTAL_LESSON_SOURCE_ID_MAX
+} from '../lib/portalLessons';
 import { clampHeroBrightness, clampLoginDimming } from '../lib/brandingCache';
 
 import { getNextPeriodDateRange, toDateString } from '../lib/dateTime';
@@ -96,6 +109,8 @@ export interface DataLoadingState {
   forerunner: boolean;
   viewerNotes: boolean;
   announcements: boolean;
+  portalPastorsHeart: boolean;
+  portalLessons: boolean;
 }
 
 interface DataContextType {
@@ -103,6 +118,8 @@ interface DataContextType {
   updateSettings: (newSettings: Partial<AppSettings>) => Promise<void>;
   bannerImage: string;
   updateBannerImage: (imageUrl: string) => Promise<void>;
+  lessonsBannerImage: string;
+  updateLessonsBannerImage: (imageUrl: string) => Promise<void>;
   loginBackground: LoginBackgroundConfig;
   updateLoginBackground: (updates: Partial<LoginBackgroundConfig>) => Promise<void>;
   saveStatus: SaveStatus;
@@ -235,6 +252,37 @@ interface DataContextType {
   updateAnnouncement: (id: string, updates: { title?: string; message?: string; pinned?: boolean; showUntil?: string }) => Promise<void>;
   deleteAnnouncement: (id: string) => Promise<void>;
 
+  // Portal Pastor's Heart
+  portalPastorsHeart: PortalPastorsHeart[];
+  publishPastorsHeart: (input: { sundayDate: string; body: string; lessonPassage?: string }) => Promise<void>;
+  removePastorsHeart: (sundayDate: string) => Promise<void>;
+
+  // Portal Lessons Library
+  portalLessons: PortalLesson[];
+  addPortalLesson: (input: {
+    sundayDate: string;
+    title: string;
+    driveUrl?: string;
+    note?: string;
+    bodyHtml?: string;
+    source?: PortalLessonSource;
+    sourceLessonId?: string;
+  }) => Promise<string>;
+  updatePortalLesson: (
+    id: string,
+    updates: {
+      sundayDate?: string;
+      title?: string;
+      driveUrl?: string;
+      note?: string;
+      bodyHtml?: string;
+      source?: PortalLessonSource;
+      sourceLessonId?: string;
+    }
+  ) => Promise<void>;
+  deletePortalLesson: (id: string) => Promise<void>;
+  bulkAddPortalLessons: (items: Array<{ sundayDate: string; title: string; driveUrl: string; note?: string }>) => Promise<number>;
+
   // Active Save / AI / Download Guard for Idle Logout
   isBusyOperation: boolean;
   beginBusyOperation: () => void;
@@ -318,6 +366,10 @@ function buildPublicBrandingPayload(appSettings: AppSettings, vSettings: ViewerS
     ...(typeof appSettings.heroBrightness === 'number'
       ? { heroBrightness: clampHeroBrightness(appSettings.heroBrightness) }
       : {}),
+    ...(typeof appSettings.lessonsHeroBrightness === 'number'
+      ? { lessonsHeroBrightness: clampHeroBrightness(appSettings.lessonsHeroBrightness) }
+      : {}),
+    lessonsDriveFolderLink: appSettings.lessonsDriveFolderLink || '',
     theme: normalized.theme,
     colorScheme: normalized.colorScheme,
     accentColor: normalizeAccentColor(appSettings.accentColor, 'red'),
@@ -387,6 +439,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [bannerImage, setBannerImage] = useState<string>('');
   const [publicBannerImage, setPublicBannerImage] = useState<string>('');
   const [publicBannerLoaded, setPublicBannerLoaded] = useState<boolean>(false);
+  const [lessonsBannerImage, setLessonsBannerImage] = useState<string>('');
+  const [publicLessonsBannerImage, setPublicLessonsBannerImage] = useState<string>('');
   const [nodes, setNodes] = useState<OutlineNode[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [peoplePublic, setPeoplePublic] = useState<PersonPublic[]>([]);
@@ -411,6 +465,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [viewerSettings, setViewerSettings] = useState<ViewerSettings>(defaultViewerSettings);
   const [viewerNotes, setViewerNotes] = useState<ViewerNote[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [portalPastorsHeart, setPortalPastorsHeart] = useState<PortalPastorsHeart[]>([]);
+  const [portalLessons, setPortalLessons] = useState<PortalLesson[]>([]);
   const [busyOperationCount, setBusyOperationCount] = useState<number>(0);
   const [forerunnerSettings, setForerunnerSettings] = useState<ForerunnerFormatSettings>({
     fontName: 'Abadi',
@@ -476,14 +532,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const baseBrandingAppearance = normalizeAppearance(publicBranding.theme, publicBranding.colorScheme);
   const secretaryAppearance = normalizeAppearance(settings.theme, settings.colorScheme);
+  const viewerColorScheme: ColorScheme = viewerPrefs.colorScheme ?? getDevicePreferredColorScheme();
+  const viewerTheme: ThemeBase = resolveViewerThemeId(viewerColorScheme);
 
   const activeTheme: ThemeBase = isViewer
-    ? DEFAULT_THEME_ID
+    ? viewerTheme
     : isSecretary
       ? secretaryAppearance.theme
       : baseBrandingAppearance.theme;
   const activeColorScheme: ColorScheme = isViewer
-    ? (viewerPrefs.colorScheme ?? getDevicePreferredColorScheme())
+    ? viewerColorScheme
     : isSecretary
       ? secretaryAppearance.colorScheme
       : baseBrandingAppearance.colorScheme;
@@ -610,6 +668,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [subscriptionEpoch, clearCollectionError, recordCollectionError]);
 
+  // Sync public Lessons hero image independently so Viewers can display it cleanly
+  useEffect(() => {
+    let active = true;
+    const unsub = onSnapshot(doc(db, 'public_branding', 'lessons_banner'), (snap) => {
+      if (!active) return;
+      if (snap.exists()) {
+        const data = snap.data();
+        setPublicLessonsBannerImage(data?.imageUrl || data?.dataUrl || '');
+      } else {
+        setPublicLessonsBannerImage('');
+      }
+    }, (err: any) => {
+      if (!active) return;
+      console.warn('Public lessons banner snapshot fallback:', err);
+      setPublicLessonsBannerImage('');
+    });
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [subscriptionEpoch]);
+
   // Sync collections strictly by role (Secretary = full access; Viewer = allowed read-only collections only when unlocked)
   useEffect(() => {
     const clearAllRoleData = () => {
@@ -632,9 +712,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setForerunnerAsset(null);
       setVisitors([]);
       setBannerImage('');
+      setLessonsBannerImage('');
       setViewerSettings(defaultViewerSettings);
       setViewerNotes([]);
       setAnnouncements([]);
+      setPortalPastorsHeart([]);
+      setPortalLessons([]);
     };
 
     if (!currentUser || (isViewer && !viewerUnlocked)) {
@@ -796,6 +879,36 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       () => setAnnouncements([])
     );
 
+    attachResilientSnapshot(
+      'portalPastorsHeart',
+      APP_COLLECTIONS.portal_pastors_heart.id,
+      (onNext, onErr) => onSnapshot(collection(db, APP_COLLECTIONS.portal_pastors_heart.id), onNext, onErr),
+      (snap) => {
+        const items = snap.docs.map((d: any) => ({ ...d.data(), id: d.id } as PortalPastorsHeart));
+        items.sort((a: PortalPastorsHeart, b: PortalPastorsHeart) =>
+          (b.sundayDate || b.id || '').localeCompare(a.sundayDate || a.id || '')
+        );
+        setPortalPastorsHeart(items);
+      },
+      () => setPortalPastorsHeart([])
+    );
+
+    attachResilientSnapshot(
+      'portalLessons',
+      APP_COLLECTIONS.portal_lessons.id,
+      (onNext, onErr) => onSnapshot(collection(db, APP_COLLECTIONS.portal_lessons.id), onNext, onErr),
+      (snap) => {
+        const items = snap.docs.map((d: any) => ({ ...d.data(), id: d.id } as PortalLesson));
+        items.sort((a: PortalLesson, b: PortalLesson) => {
+          const dateCmp = (b.sundayDate || '').localeCompare(a.sundayDate || '');
+          if (dateCmp !== 0) return dateCmp;
+          return (b.createdAt || '').localeCompare(a.createdAt || '');
+        });
+        setPortalLessons(items);
+      },
+      () => setPortalLessons([])
+    );
+
     if (isViewer) {
       // Viewer reads people_public ONLY (never people, settings, visitors, tasks, etc.)
       attachResilientSnapshot(
@@ -813,6 +926,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Mark secretary-only collections loaded so UI never hangs or emits permission errors
       markLoaded('settings');
       markLoaded('banner');
+      markLoaded('lessonsBanner');
       markLoaded('categories');
       markLoaded('messageTemplates');
       markLoaded('sentReminders');
@@ -857,6 +971,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             heroBrightness: typeof data.heroBrightness === 'number'
               ? clampHeroBrightness(data.heroBrightness)
               : undefined,
+            lessonsHeroBrightness: typeof data.lessonsHeroBrightness === 'number'
+              ? clampHeroBrightness(data.lessonsHeroBrightness)
+              : undefined,
             showDailyVerse: data.showDailyVerse ?? true,
           });
         }
@@ -877,6 +994,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       },
       () => setBannerImage('')
+    );
+
+    attachResilientSnapshot(
+      'lessonsBanner',
+      `${APP_COLLECTIONS.settings.id}/lessons_banner`,
+      (onNext, onErr) => onSnapshot(doc(db, APP_COLLECTIONS.settings.id, 'lessons_banner'), onNext, onErr),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setLessonsBannerImage(data?.imageUrl || data?.dataUrl || '');
+        } else {
+          setLessonsBannerImage('');
+        }
+      },
+      () => setLessonsBannerImage('')
     );
 
     attachResilientSnapshot(
@@ -1138,6 +1270,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (typeof publicBranding.heroBrightness === 'number'
         ? clampHeroBrightness(publicBranding.heroBrightness)
         : undefined) !== desired.heroBrightness ||
+      (typeof publicBranding.lessonsHeroBrightness === 'number'
+        ? clampHeroBrightness(publicBranding.lessonsHeroBrightness)
+        : undefined) !== desired.lessonsHeroBrightness ||
+      (publicBranding.lessonsDriveFolderLink || '') !== (desired.lessonsDriveFolderLink || '') ||
       publicBranding.theme !== desired.theme ||
       (publicBranding.colorScheme || DEFAULT_COLOR_SCHEME) !== desired.colorScheme ||
       publicBranding.accentColor !== desired.accentColor ||
@@ -1165,6 +1301,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Public banner sync warning:', err);
       });
     }
+
+    if (lessonsBannerImage && lessonsBannerImage !== publicLessonsBannerImage) {
+      setDoc(doc(db, 'public_branding', 'lessons_banner'), {
+        imageUrl: lessonsBannerImage,
+        updatedAt: new Date().toISOString()
+      }).catch((err) => {
+        console.warn('Public lessons banner sync warning:', err);
+      });
+    }
   }, [
     isSecretary,
     loadedCollections.settings,
@@ -1175,7 +1320,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     publicBrandingExists,
     publicBranding,
     bannerImage,
-    publicBannerImage
+    publicBannerImage,
+    lessonsBannerImage,
+    publicLessonsBannerImage
   ]);
 
   // One-time safe build of people_public from existing members (creates missing docs in people_public only, never touches people)
@@ -1248,6 +1395,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatedAt: now
       });
       batch.set(doc(db, 'public_branding', 'banner'), {
+        imageUrl,
+        updatedAt: now
+      });
+      await batch.commit();
+    });
+  };
+
+  // Update Lessons Hero Image in its own separate document (and mirror to public_branding/lessons_banner)
+  const updateLessonsBannerImage = async (imageUrl: string) => {
+    if (!isSecretary) return;
+    await executeServerConfirmedWrite('Update Lessons hero image', 'settings/lessons_banner', async () => {
+      const now = new Date().toISOString();
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'settings', 'lessons_banner'), {
+        imageUrl,
+        updatedAt: now
+      });
+      batch.set(doc(db, 'public_branding', 'lessons_banner'), {
         imageUrl,
         updatedAt: now
       });
@@ -2348,6 +2513,351 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  // ---------------- PORTAL PASTOR'S HEART ----------------
+  const publishPastorsHeart = async (input: {
+    sundayDate: string;
+    body: string;
+    lessonPassage?: string;
+  }): Promise<void> => {
+    if (!isSecretary) return;
+    const cleanDate = (input.sundayDate || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+      throw new Error('Please choose a valid Sunday date (YYYY-MM-DD).');
+    }
+    const cleanBody = (input.body || '').replace(/\r\n/g, '\n').trim();
+    if (!cleanBody) {
+      throw new Error("Write the Pastor's Heart message first.");
+    }
+    if (cleanBody.length > 3000) {
+      throw new Error(`Pastor's Heart message exceeds 3,000 characters (${cleanBody.length} / 3,000).`);
+    }
+    const cleanPassage = (input.lessonPassage || '').trim().slice(0, 120);
+    const existingLocal = portalPastorsHeart.find(
+      p => p.id === cleanDate || p.sundayDate === cleanDate
+    );
+    const docRef = doc(db, APP_COLLECTIONS.portal_pastors_heart.id, cleanDate);
+
+    await executeServerConfirmedWrite(
+      existingLocal ? "Update Pastor's Heart on Portal" : "Publish Pastor's Heart to Portal",
+      `portal_pastors_heart/${cleanDate}`,
+      async () => {
+        const now = new Date().toISOString();
+        let createdAt = existingLocal?.createdAt || '';
+        if (!createdAt) {
+          const existingSnap = await getDoc(docRef);
+          if (existingSnap.exists()) {
+            const existingData = existingSnap.data() as Partial<PortalPastorsHeart>;
+            if (typeof existingData?.createdAt === 'string' && existingData.createdAt.length > 0) {
+              createdAt = existingData.createdAt;
+            }
+          }
+        }
+        const payload: PortalPastorsHeart = {
+          id: cleanDate,
+          sundayDate: cleanDate,
+          body: cleanBody,
+          ...(cleanPassage ? { lessonPassage: cleanPassage } : {}),
+          createdAt: createdAt || now,
+          updatedAt: now,
+        };
+        await setDoc(docRef, sanitizeForFirestore(payload));
+        setPortalPastorsHeart(prev => {
+          const next = [payload, ...prev.filter(p => p.id !== cleanDate && p.sundayDate !== cleanDate)];
+          next.sort((a, b) => (b.sundayDate || b.id || '').localeCompare(a.sundayDate || a.id || ''));
+          return next;
+        });
+      }
+    );
+  };
+
+  const removePastorsHeart = async (sundayDate: string): Promise<void> => {
+    if (!isSecretary) return;
+    const cleanDate = (sundayDate || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+      throw new Error('Invalid Sunday date.');
+    }
+    await executeServerConfirmedWrite(
+      "Remove Pastor's Heart from Portal",
+      `portal_pastors_heart/${cleanDate}`,
+      async () => {
+        await deleteDoc(doc(db, APP_COLLECTIONS.portal_pastors_heart.id, cleanDate));
+        setPortalPastorsHeart(prev => prev.filter(p => p.id !== cleanDate && p.sundayDate !== cleanDate));
+      }
+    );
+  };
+
+  // ---------------- PORTAL LESSONS LIBRARY ----------------
+  const addPortalLesson = async (input: {
+    sundayDate: string;
+    title: string;
+    driveUrl?: string;
+    note?: string;
+    bodyHtml?: string;
+    source?: PortalLessonSource;
+    sourceLessonId?: string;
+  }): Promise<string> => {
+    if (!isSecretary) return '';
+    const cleanDate = (input.sundayDate || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+      throw new Error('Please choose a valid Sunday date.');
+    }
+    const cleanTitle = (input.title || '').trim();
+    if (!cleanTitle || cleanTitle.length > PORTAL_LESSON_TITLE_MAX) {
+      throw new Error(`Title must be between 1 and ${PORTAL_LESSON_TITLE_MAX} characters.`);
+    }
+
+    const rawDriveUrl = (input.driveUrl || '').trim();
+    let normalizedDriveUrl = '';
+    if (rawDriveUrl) {
+      const urlCheck = validatePortalLessonDriveUrl(rawDriveUrl);
+      if (!urlCheck.valid) {
+        throw new Error(urlCheck.error || 'Please enter a valid Google Drive or Google Docs https link.');
+      }
+      normalizedDriveUrl = urlCheck.normalized;
+    }
+
+    const cleanBodyHtml = input.bodyHtml !== undefined ? sanitizeLessonBodyHtml(input.bodyHtml) : '';
+    if (cleanBodyHtml.length > PORTAL_LESSON_BODY_HTML_MAX) {
+      throw new Error(`Lesson text exceeds the ${PORTAL_LESSON_BODY_HTML_MAX.toLocaleString()} character limit.`);
+    }
+
+    if (!normalizedDriveUrl && !cleanBodyHtml) {
+      throw new Error('Please provide either lesson text or a Google Drive link.');
+    }
+
+    const cleanNote = (input.note || '').trim();
+    if (cleanNote.length > PORTAL_LESSON_NOTE_MAX) {
+      throw new Error(`Note must be ${PORTAL_LESSON_NOTE_MAX} characters or less.`);
+    }
+
+    if (input.source !== undefined && input.source !== 'lessonMaker' && input.source !== 'manual') {
+      throw new Error('Invalid lesson source.');
+    }
+    const cleanSourceLessonId = (input.sourceLessonId || '').trim();
+    if (cleanSourceLessonId.length > PORTAL_LESSON_SOURCE_ID_MAX) {
+      throw new Error(`Source lesson ID must be ${PORTAL_LESSON_SOURCE_ID_MAX} characters or less.`);
+    }
+
+    const id = 'les_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36).slice(-4);
+    const now = new Date().toISOString();
+    const newLesson: PortalLesson = {
+      id,
+      sundayDate: cleanDate,
+      title: cleanTitle,
+      ...(normalizedDriveUrl ? { driveUrl: normalizedDriveUrl } : {}),
+      ...(cleanNote ? { note: cleanNote } : {}),
+      ...(cleanBodyHtml ? { bodyHtml: cleanBodyHtml } : {}),
+      ...(input.source ? { source: input.source } : {}),
+      ...(cleanSourceLessonId ? { sourceLessonId: cleanSourceLessonId } : {}),
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await executeServerConfirmedWrite(`Save Lesson "${cleanTitle}"`, `portal_lessons/${id}`, async () => {
+      await setDoc(doc(db, APP_COLLECTIONS.portal_lessons.id, id), sanitizeForFirestore(newLesson));
+    });
+    return id;
+  };
+
+  const updatePortalLesson = async (
+    id: string,
+    updates: {
+      sundayDate?: string;
+      title?: string;
+      driveUrl?: string;
+      note?: string;
+      bodyHtml?: string;
+      source?: PortalLessonSource;
+      sourceLessonId?: string;
+    }
+  ): Promise<void> => {
+    if (!isSecretary) return;
+    const existing = portalLessons.find(l => l.id === id);
+    const now = new Date().toISOString();
+    const cleanUpdates: Record<string, any> = { updatedAt: now };
+    const localPatch: Partial<PortalLesson> = { updatedAt: now };
+    let shouldDeleteNote = false;
+    let shouldDeleteDriveUrl = false;
+
+    if (updates.sundayDate !== undefined) {
+      const cleanDate = updates.sundayDate.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+        throw new Error('Please choose a valid Sunday date.');
+      }
+      cleanUpdates.sundayDate = cleanDate;
+      localPatch.sundayDate = cleanDate;
+    }
+    if (updates.title !== undefined) {
+      const cleanTitle = updates.title.trim();
+      if (!cleanTitle || cleanTitle.length > PORTAL_LESSON_TITLE_MAX) {
+        throw new Error(`Title must be between 1 and ${PORTAL_LESSON_TITLE_MAX} characters.`);
+      }
+      cleanUpdates.title = cleanTitle;
+      localPatch.title = cleanTitle;
+    }
+    if (updates.driveUrl !== undefined) {
+      const rawDriveUrl = updates.driveUrl.trim();
+      if (rawDriveUrl) {
+        const urlCheck = validatePortalLessonDriveUrl(rawDriveUrl);
+        if (!urlCheck.valid) {
+          throw new Error(urlCheck.error || 'Please enter a valid Google Drive or Google Docs https link.');
+        }
+        cleanUpdates.driveUrl = urlCheck.normalized;
+        localPatch.driveUrl = urlCheck.normalized;
+      } else {
+        shouldDeleteDriveUrl = true;
+        localPatch.driveUrl = undefined;
+      }
+    }
+    if (updates.bodyHtml !== undefined) {
+      const cleanBodyHtml = sanitizeLessonBodyHtml(updates.bodyHtml);
+      if (!cleanBodyHtml) {
+        throw new Error('Lesson text cannot be empty.');
+      }
+      if (cleanBodyHtml.length > PORTAL_LESSON_BODY_HTML_MAX) {
+        throw new Error(`Lesson text exceeds the ${PORTAL_LESSON_BODY_HTML_MAX.toLocaleString()} character limit.`);
+      }
+      cleanUpdates.bodyHtml = cleanBodyHtml;
+      localPatch.bodyHtml = cleanBodyHtml;
+    }
+    if (updates.source !== undefined) {
+      if (updates.source !== 'lessonMaker' && updates.source !== 'manual') {
+        throw new Error('Invalid lesson source.');
+      }
+      cleanUpdates.source = updates.source;
+      localPatch.source = updates.source;
+    }
+    if (updates.sourceLessonId !== undefined) {
+      const cleanSourceLessonId = updates.sourceLessonId.trim();
+      if (!cleanSourceLessonId || cleanSourceLessonId.length > PORTAL_LESSON_SOURCE_ID_MAX) {
+        throw new Error(`Source lesson ID must be between 1 and ${PORTAL_LESSON_SOURCE_ID_MAX} characters.`);
+      }
+      cleanUpdates.sourceLessonId = cleanSourceLessonId;
+      localPatch.sourceLessonId = cleanSourceLessonId;
+    }
+    if ('note' in updates) {
+      const cleanNote = typeof updates.note === 'string' ? updates.note.trim() : '';
+      if (cleanNote.length > PORTAL_LESSON_NOTE_MAX) {
+        throw new Error(`Note must be ${PORTAL_LESSON_NOTE_MAX} characters or less.`);
+      }
+      if (cleanNote) {
+        cleanUpdates.note = cleanNote;
+        localPatch.note = cleanNote;
+      } else {
+        shouldDeleteNote = true;
+        localPatch.note = undefined;
+      }
+    }
+
+    const resultingHasDriveUrl = shouldDeleteDriveUrl
+      ? false
+      : Boolean(cleanUpdates.driveUrl || existing?.driveUrl);
+    const resultingHasBodyHtml = Boolean(cleanUpdates.bodyHtml || existing?.bodyHtml);
+    if (!resultingHasDriveUrl && !resultingHasBodyHtml) {
+      throw new Error('Please provide either lesson text or a Google Drive link.');
+    }
+
+    const firestorePayload = sanitizeForFirestore(cleanUpdates);
+    if (shouldDeleteNote) {
+      firestorePayload.note = deleteField();
+    }
+    if (shouldDeleteDriveUrl) {
+      firestorePayload.driveUrl = deleteField();
+    }
+
+    await executeServerConfirmedWrite('Update Lesson', `portal_lessons/${id}`, async () => {
+      await updateDoc(doc(db, APP_COLLECTIONS.portal_lessons.id, id), firestorePayload);
+      setPortalLessons(prev => {
+        const next = prev.map(item => {
+          if (item.id !== id) return item;
+          const updated: PortalLesson = { ...item, ...localPatch };
+          if (shouldDeleteNote) delete updated.note;
+          if (shouldDeleteDriveUrl) delete updated.driveUrl;
+          return updated;
+        });
+        next.sort((a, b) => {
+          const dateCmp = (b.sundayDate || '').localeCompare(a.sundayDate || '');
+          if (dateCmp !== 0) return dateCmp;
+          return (b.createdAt || '').localeCompare(a.createdAt || '');
+        });
+        return next;
+      });
+    });
+  };
+
+  const deletePortalLesson = async (id: string): Promise<void> => {
+    if (!isSecretary) return;
+    await executeServerConfirmedWrite('Delete Lesson', `portal_lessons/${id}`, async () => {
+      await deleteDoc(doc(db, APP_COLLECTIONS.portal_lessons.id, id));
+      setPortalLessons(prev => prev.filter(item => item.id !== id));
+    });
+  };
+
+  const bulkAddPortalLessons = async (
+    items: Array<{ sundayDate: string; title: string; driveUrl: string; note?: string }>
+  ): Promise<number> => {
+    if (!isSecretary || items.length === 0) return 0;
+
+    const existingKeys = new Set(
+      portalLessons.map(l => `${l.sundayDate.trim()}||${l.title.trim()}||${(l.driveUrl || '').trim()}`)
+    );
+    const seenBatchKeys = new Set<string>();
+    const toInsert: PortalLesson[] = [];
+    const baseTime = Date.now();
+
+    for (let i = 0; i < items.length; i++) {
+      const raw = items[i];
+      const cleanDate = (raw.sundayDate || '').trim();
+      const cleanTitle = (raw.title || '').trim();
+      const urlCheck = validatePortalLessonDriveUrl(raw.driveUrl);
+      const cleanNote = (raw.note || '').trim();
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) continue;
+      if (!cleanTitle || cleanTitle.length > PORTAL_LESSON_TITLE_MAX) continue;
+      if (!urlCheck.valid) continue;
+      if (cleanNote.length > PORTAL_LESSON_NOTE_MAX) continue;
+
+      const key = `${cleanDate}||${cleanTitle}||${urlCheck.normalized}`;
+      if (existingKeys.has(key) || seenBatchKeys.has(key)) continue;
+      seenBatchKeys.add(key);
+
+      const id = 'les_' + Math.random().toString(36).substring(2, 9) + (baseTime + i).toString(36).slice(-5);
+      const now = new Date(baseTime + i).toISOString();
+      toInsert.push({
+        id,
+        sundayDate: cleanDate,
+        title: cleanTitle,
+        driveUrl: urlCheck.normalized,
+        ...(cleanNote ? { note: cleanNote } : {}),
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    if (toInsert.length === 0) return 0;
+
+    await executeServerConfirmedWrite(
+      `Add ${toInsert.length} Lesson${toInsert.length === 1 ? '' : 's'}`,
+      'portal_lessons',
+      async () => {
+        const CHUNK_SIZE = 400;
+        for (let start = 0; start < toInsert.length; start += CHUNK_SIZE) {
+          const chunk = toInsert.slice(start, start + CHUNK_SIZE);
+          const batch = writeBatch(db);
+          for (const lesson of chunk) {
+            batch.set(
+              doc(db, APP_COLLECTIONS.portal_lessons.id, lesson.id),
+              sanitizeForFirestore(lesson)
+            );
+          }
+          await batch.commit();
+        }
+      }
+    );
+
+    return toInsert.length;
+  };
+
   // Computed: Assignable roles from outline tree (any node marked as role or has attached people or is a leaf)
   const assignableRoles = useMemo(() => {
     return nodes.filter(n => n.isRole || (n.assignedPeopleIds && n.assignedPeopleIds.length > 0));
@@ -2368,8 +2878,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...(typeof publicBranding.heroBrightness === 'number'
         ? { heroBrightness: clampHeroBrightness(publicBranding.heroBrightness) }
         : {}),
-      theme: DEFAULT_THEME_ID,
-      colorScheme: viewerPrefs.colorScheme ?? getDevicePreferredColorScheme(),
+      ...(typeof publicBranding.lessonsHeroBrightness === 'number'
+        ? { lessonsHeroBrightness: clampHeroBrightness(publicBranding.lessonsHeroBrightness) }
+        : {}),
+      lessonsDriveFolderLink: publicBranding.lessonsDriveFolderLink || '',
+      theme: viewerTheme,
+      colorScheme: viewerColorScheme,
       accentColor: normalizeAccentColor(publicBranding.accentColor, 'red'),
       clockStyle: publicBranding.clockStyle === 'analog' ? 'analog' : 'digital',
       clockColor: publicBranding.clockColor === 'black' ? 'black' : 'white',
@@ -2378,9 +2892,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       showDailyVerse: publicBranding.showDailyVerse !== false,
       initialAccountCreated: true
     };
-  }, [isViewer, settings, publicBranding, viewerPrefs]);
+  }, [isViewer, settings, publicBranding, viewerColorScheme, viewerTheme]);
 
   const effectiveBannerImage = isViewer ? publicBannerImage : bannerImage;
+  const effectiveLessonsBannerImage = isViewer ? publicLessonsBannerImage : lessonsBannerImage;
 
   const effectivePeople = useMemo<Person[]>(() => {
     if (!isViewer) return people;
@@ -2416,6 +2931,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         [loadedCollections.assignments, 'assignments'],
         [loadedCollections.schedules, 'schedules'],
         [loadedCollections.announcements, 'announcements'],
+        [loadedCollections.portalPastorsHeart, 'portal_pastors_heart'],
+        [loadedCollections.portalLessons, 'portal_lessons'],
         [publicBannerLoaded, 'public_branding/banner'],
       ];
       return checks.filter(([ok]) => !ok).map(([, name]) => name);
@@ -2431,6 +2948,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       [loadedCollections.assignments, 'assignments'],
       [loadedCollections.schedules, 'schedules'],
       [loadedCollections.announcements, 'announcements'],
+      [loadedCollections.portalPastorsHeart, 'portal_pastors_heart'],
+      [loadedCollections.portalLessons, 'portal_lessons'],
       [loadedCollections.tasks, 'tasks'],
       [loadedCollections.notes, 'notes'],
       [loadedCollections.messageTemplates, 'message_templates'],
@@ -2446,6 +2965,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateSettings,
     bannerImage: effectiveBannerImage,
     updateBannerImage,
+    lessonsBannerImage: effectiveLessonsBannerImage,
+    updateLessonsBannerImage,
     loginBackground,
     updateLoginBackground,
     saveStatus,
@@ -2745,6 +3266,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateAnnouncement,
     deleteAnnouncement,
 
+    portalPastorsHeart,
+    publishPastorsHeart,
+    removePastorsHeart,
+
+    portalLessons,
+    addPortalLesson,
+    updatePortalLesson,
+    deletePortalLesson,
+    bulkAddPortalLessons,
+
     isBusyOperation,
     beginBusyOperation,
     endBusyOperation,
@@ -2764,6 +3295,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               loadedCollections.assignments &&
               loadedCollections.schedules &&
               loadedCollections.announcements &&
+              loadedCollections.portalPastorsHeart &&
+              loadedCollections.portalLessons &&
               publicBannerLoaded
             )
           : !(
@@ -2777,6 +3310,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               loadedCollections.assignments &&
               loadedCollections.schedules &&
               loadedCollections.announcements &&
+              loadedCollections.portalPastorsHeart &&
+              loadedCollections.portalLessons &&
               loadedCollections.tasks &&
               loadedCollections.notes &&
               loadedCollections.messageTemplates &&
@@ -2792,7 +3327,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             loadedCollections.assignments &&
             loadedCollections.nodes &&
             loadedCollections.people &&
-            loadedCollections.announcements
+            loadedCollections.announcements &&
+            loadedCollections.portalPastorsHeart
           )
         : !(
             loadedCollections.regularServices &&
@@ -2861,10 +3397,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loadedCollections.forerunnerLessons &&
         loadedCollections.forerunnerSettings &&
         loadedCollections.forerunnerBulletins &&
-        loadedCollections.forerunnerAsset
+        loadedCollections.forerunnerAsset &&
+        loadedCollections.portalPastorsHeart
       ),
       viewerNotes: !loadedCollections.viewerNotes,
       announcements: !loadedCollections.announcements,
+      portalPastorsHeart: !loadedCollections.portalPastorsHeart,
+      portalLessons: !loadedCollections.portalLessons,
     },
     pendingLoadingParts,
     collectionErrors,

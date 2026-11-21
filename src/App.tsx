@@ -22,6 +22,7 @@ import { VisitorsPage } from './pages/VisitorsPage';
 import { ViewerNotesPage } from './pages/ViewerNotesPage';
 import { PrayerWallPage } from './pages/PrayerWallPage';
 import { LessonsPage } from './pages/LessonsPage';
+import { PortalLessonsPage } from './pages/PortalLessonsPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { VisitorFollowUpStatus } from './types';
 import { SaveStatusPill } from './components/SaveStatusPill';
@@ -75,6 +76,7 @@ const KNOWN_APP_ROUTES = new Set([
   'sunday-school',
   'visitors',
   'announcements',
+  'portal-lessons',
 ]);
 
 function getPreservedBasePathname(): string {
@@ -464,6 +466,7 @@ function AppContent() {
               {effectiveTab === 'regular-services' && <RegularServicesPage />}
               {effectiveTab === 'schedules' && <SchedulesPage onNavigate={handleNavigate} />}
               {effectiveTab === 'announcements' && <AnnouncementsPage />}
+              {effectiveTab === 'portal-lessons' && <PortalLessonsPage />}
               {effectiveTab === 'people-ministries' && <PeopleMinistriesPage />}
               {effectiveTab === 'settings' && <SettingsPage />}
               {effectiveTab === 'message-templates' && <MessageTemplatesPage onNavigate={handleNavigate} />}

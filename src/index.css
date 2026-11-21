@@ -1024,6 +1024,10 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
   animation-delay: 0.36s;
 }
 
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-home-s5 {
+  animation-delay: 0.44s;
+}
+
 .viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-rows > div {
   animation: viewerItemFadeUp 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
@@ -1309,3 +1313,83 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
     transform: none !important;
   }
 }
+
+/* ================= SANITIZED PORTAL LESSON CONTENT ================= */
+.lesson-content {
+  line-height: 1.75;
+  word-break: break-word;
+}
+
+.lesson-content p {
+  margin-bottom: 0.85rem;
+}
+
+.lesson-content p:last-child,
+.lesson-content ul:last-child,
+.lesson-content ol:last-child,
+.lesson-content blockquote:last-child {
+  margin-bottom: 0;
+}
+
+.lesson-content h1,
+.lesson-content h2,
+.lesson-content h3,
+.lesson-content h4 {
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: 1.2rem;
+  margin-bottom: 0.55rem;
+}
+
+.lesson-content h1:first-child,
+.lesson-content h2:first-child,
+.lesson-content h3:first-child,
+.lesson-content h4:first-child {
+  margin-top: 0;
+}
+
+.lesson-content h1 { font-size: 1.35em; }
+.lesson-content h2 { font-size: 1.2em; }
+.lesson-content h3 { font-size: 1.08em; }
+.lesson-content h4 { font-size: 1em; }
+
+.lesson-content ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.lesson-content ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.lesson-content ol[type="a"] { list-style-type: lower-alpha; }
+.lesson-content ol[type="A"] { list-style-type: upper-alpha; }
+.lesson-content ol[type="i"] { list-style-type: lower-roman; }
+.lesson-content ol[type="I"] { list-style-type: upper-roman; }
+
+.lesson-content li {
+  margin-bottom: 0.35rem;
+}
+
+.lesson-content blockquote {
+  border-left: 3px solid var(--accent-border);
+  padding-left: 0.9rem;
+  margin: 0.75rem 0;
+  font-style: italic;
+}
+
+.lesson-content .lesson-align-center {
+  text-align: center;
+}
+
+.lesson-content .lesson-align-justify {
+  text-align: justify;
+}
+
+.lesson-content .lesson-indent {
+  text-indent: 1.5em;
+}
+

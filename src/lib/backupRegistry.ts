@@ -124,6 +124,16 @@ export const APP_COLLECTIONS = {
     label: 'Bulletins',
     category: 'forerunner',
   },
+  portal_pastors_heart: {
+    id: 'portal_pastors_heart',
+    label: "Portal Pastor's Heart",
+    category: 'forerunner',
+  },
+  portal_lessons: {
+    id: 'portal_lessons',
+    label: 'Lessons Library',
+    category: 'forerunner',
+  },
   viewer_settings: {
     id: 'viewer_settings',
     label: 'Viewer Access Settings',

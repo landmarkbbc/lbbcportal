@@ -30,6 +30,7 @@ export const DEFAULT_PUBLIC_BRANDING: PublicBranding = {
   churchLogo: '',
   homeWelcomeLine: '',
   homeIntroText: '',
+  lessonsDriveFolderLink: '',
   accentColor: 'red',
   theme: DEFAULT_THEME_ID,
   colorScheme: DEFAULT_COLOR_SCHEME,
@@ -186,6 +187,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         heroBrightness: typeof rawData.heroBrightness === 'number'
           ? clampHeroBrightness(rawData.heroBrightness)
           : undefined,
+        lessonsHeroBrightness: typeof rawData.lessonsHeroBrightness === 'number'
+          ? clampHeroBrightness(rawData.lessonsHeroBrightness)
+          : undefined,
+        lessonsDriveFolderLink: typeof rawData.lessonsDriveFolderLink === 'string'
+          ? rawData.lessonsDriveFolderLink
+          : '',
         accentColor: safeAccentColor,
         theme: normalizedAppearance.theme,
         colorScheme: normalizedAppearance.colorScheme,
