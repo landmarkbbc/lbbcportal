@@ -1,4 +1,10 @@
-import { TimeFormat, WeekStartDay } from '../types';
+import {
+  TimeFormat,
+  WeekStartDay,
+  RegularService,
+  WeekOfMonthPattern,
+  WeekOfMonthValue
+} from '../types';
 
 /**
  * Format a 24-hour time string ("14:30") into user format ("2:30 PM" or "14:30")
@@ -84,6 +90,43 @@ export function doTimesOverlap(
 }
 
 /**
+ * Shared helper answering: "Does this regular service/activity occur on this date?"
+ * Handles optional weekPattern ('every' | 'only' | 'except') and weekNumbers (1 | 2 | 3 | 4 | 'last').
+ * Services/activities without weekPattern default to 'every'.
+ */
+export function doesRegularServiceOccurOnDate(
+  service: Pick<RegularService, 'daysOfWeek' | 'weekPattern' | 'weekNumbers'>,
+  dateOrStr: Date | string
+): boolean {
+  const date = typeof dateOrStr === 'string' ? parseDateString(dateOrStr) : dateOrStr;
+  if (!service.daysOfWeek || !service.daysOfWeek.includes(date.getDay())) {
+    return false;
+  }
+
+  const pattern: WeekOfMonthPattern = service.weekPattern || 'every';
+  if (pattern === 'every') {
+    return true;
+  }
+
+  const weekNumbers = service.weekNumbers || [];
+  const dayOfMonth = date.getDate();
+  const occurrenceNum = Math.ceil(dayOfMonth / 7);
+  const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const isLast = dayOfMonth + 7 > daysInMonth;
+
+  const matchesWeek =
+    weekNumbers.includes(occurrenceNum as WeekOfMonthValue) ||
+    (isLast && weekNumbers.includes('last'));
+
+  if (pattern === 'only') {
+    return matchesWeek;
+  }
+
+  // pattern === 'except'
+  return !matchesWeek;
+}
+
+/**
  * Get all dates between start and end (inclusive) matching given days of week (0=Sun, 6=Sat)
  */
 export function getRecurringDates(
@@ -103,6 +146,153 @@ export function getRecurringDates(
     curr.setDate(curr.getDate() + 1);
   }
   return result;
+}
+
+/**
+ * Get all dates between start and end (inclusive) where a RegularService/Activity occurs,
+ * applying both daysOfWeek and optional week-of-month pattern via doesRegularServiceOccurOnDate.
+ */
+export function getServiceRecurringDates(
+  startDateStr: string,
+  endDateStr: string,
+  service: Pick<RegularService, 'daysOfWeek' | 'weekPattern' | 'weekNumbers'>
+): string[] {
+  const result: string[] = [];
+  const start = parseDateString(startDateStr);
+  const end = parseDateString(endDateStr);
+
+  const curr = new Date(start);
+  while (curr <= end) {
+    if (doesRegularServiceOccurOnDate(service, curr)) {
+      result.push(toDateString(curr));
+    }
+    curr.setDate(curr.getDate() + 1);
+  }
+  return result;
+}
+
+/**
+ * Return the next `count` matching YYYY-MM-DD dates for a RegularService/Activity starting from `fromDate`.
+ */
+export function getNextServiceDates(
+  service: Pick<RegularService, 'daysOfWeek' | 'weekPattern' | 'weekNumbers'>,
+  count = 3,
+  fromDate: Date = new Date()
+): string[] {
+  const result: string[] = [];
+  if (!service.daysOfWeek || service.daysOfWeek.length === 0) return result;
+  if (service.weekPattern === 'only' && (!service.weekNumbers || service.weekNumbers.length === 0)) {
+    return result;
+  }
+
+  const curr = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate());
+  for (let i = 0; i < 400 && result.length < count; i++) {
+    if (doesRegularServiceOccurOnDate(service, curr)) {
+      result.push(toDateString(curr));
+    }
+    curr.setDate(curr.getDate() + 1);
+  }
+  return result;
+}
+
+const FULL_WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const SHORT_WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEK_ORDER: WeekOfMonthValue[] = [1, 2, 3, 4, 'last'];
+
+function sortWeekValues(weeks: WeekOfMonthValue[]): WeekOfMonthValue[] {
+  return [...new Set(weeks)].sort((a, b) => WEEK_ORDER.indexOf(a) - WEEK_ORDER.indexOf(b));
+}
+
+function weekValueToWord(w: WeekOfMonthValue, lowercaseLast = true): string {
+  if (w === 'last') return lowercaseLast ? 'last' : 'Last';
+  if (w === 1) return '1st';
+  if (w === 2) return '2nd';
+  if (w === 3) return '3rd';
+  return '4th';
+}
+
+function joinWithConjunction(items: string[], conjunction: string): string {
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} ${conjunction} ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')} ${conjunction} ${items[items.length - 1]}`;
+}
+
+/**
+ * Plain-language summary for the Activity editor modal (e.g., "Occurs: every Friday except the last Friday of the month").
+ */
+export function formatWeekPatternSummary(
+  daysOfWeek: number[],
+  weekPattern: WeekOfMonthPattern = 'every',
+  weekNumbers: WeekOfMonthValue[] = []
+): string {
+  const sortedDays = [...new Set(daysOfWeek)].sort((a, b) => a - b);
+  const dayNames = sortedDays.map(d => FULL_WEEKDAY_NAMES[d]).filter(Boolean);
+  if (dayNames.length === 0) return '';
+
+  const daysText = joinWithConjunction(dayNames, 'and');
+
+  if (weekPattern === 'every') {
+    return `Occurs: every ${daysText}`;
+  }
+
+  const sortedWeeks = sortWeekValues(weekNumbers);
+  if (sortedWeeks.length === 0) {
+    return '';
+  }
+
+  const weekWords = sortedWeeks.map(w => weekValueToWord(w, true));
+  const weeksText = joinWithConjunction(weekWords, 'and');
+
+  if (weekPattern === 'only') {
+    return `Occurs: the ${weeksText} ${daysText} of the month`;
+  }
+
+  // 'except'
+  if (sortedDays.length === 1) {
+    return `Occurs: every ${daysText} except the ${weeksText} ${daysText} of the month`;
+  }
+  return `Occurs: every ${daysText} except the ${weeksText} of the month`;
+}
+
+/**
+ * Compact badge/label shown wherever activity details are displayed (e.g., "Last Friday of the month", "Every Friday except the last").
+ * Returns empty string for 'every' (or unset) so standard weekly services/activities show nothing extra.
+ */
+export function formatWeekPatternBadge(
+  service: Pick<RegularService, 'daysOfWeek' | 'weekPattern' | 'weekNumbers'>
+): string {
+  const pattern = service.weekPattern || 'every';
+  if (pattern === 'every') return '';
+
+  const sortedWeeks = sortWeekValues(service.weekNumbers || []);
+  if (sortedWeeks.length === 0) return '';
+
+  const sortedDays = [...new Set(service.daysOfWeek || [])].sort((a, b) => a - b);
+  const dayNames = sortedDays.length === 1
+    ? [FULL_WEEKDAY_NAMES[sortedDays[0]]]
+    : sortedDays.map(d => SHORT_WEEKDAY_NAMES[d]).filter(Boolean);
+  if (dayNames.length === 0) return '';
+
+  const daysText = joinWithConjunction(dayNames, '&');
+
+  if (pattern === 'only') {
+    if (sortedWeeks.length === 1 && sortedWeeks[0] === 'last') {
+      return `Last ${daysText} of the month`;
+    }
+    const weeksText = joinWithConjunction(sortedWeeks.map(w => weekValueToWord(w, true)), '&');
+    return `${weeksText} ${daysText} of the month`;
+  }
+
+  // 'except'
+  if (sortedWeeks.length === 1 && sortedWeeks[0] === 'last') {
+    return `Every ${daysText} except the last`;
+  }
+  const hasOnlyOrdinal = !sortedWeeks.includes('last') && sortedWeeks.length === 1;
+  const weeksText = joinWithConjunction(sortedWeeks.map(w => weekValueToWord(w, true)), '&');
+  return hasOnlyOrdinal
+    ? `Every ${daysText} except the ${weeksText}`
+    : `Every ${daysText} except ${weeksText}`;
 }
 
 /**

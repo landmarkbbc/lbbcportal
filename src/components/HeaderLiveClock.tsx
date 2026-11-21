@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
-export const HeaderLiveClock: React.FC = () => {
+interface HeaderLiveClockProps {
+  overHero?: boolean;
+}
+
+export const HeaderLiveClock: React.FC<HeaderLiveClockProps> = ({ overHero = false }) => {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -31,10 +35,18 @@ export const HeaderLiveClock: React.FC = () => {
       data-no-motion="true"
       className="flex flex-col items-end justify-center select-none shrink-0 px-1 text-right"
     >
-      <span className="text-xs sm:text-sm font-bold text-main leading-none tabular-nums tracking-tight">
+      <span
+        className={`text-xs sm:text-sm font-bold leading-none tabular-nums tracking-tight ${
+          overHero ? 'text-white' : 'text-main'
+        }`}
+      >
         {timeStr}
       </span>
-      <span className="text-[10px] text-mut font-medium leading-none mt-0.5 hidden sm:inline tabular-nums">
+      <span
+        className={`text-[10px] font-medium leading-none mt-0.5 hidden sm:inline tabular-nums ${
+          overHero ? 'text-white/80' : 'text-mut'
+        }`}
+      >
         {dateStr}
       </span>
     </div>

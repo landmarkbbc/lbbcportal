@@ -79,6 +79,11 @@ export const APP_COLLECTIONS = {
     label: 'Quick Notes',
     category: 'office',
   },
+  announcements: {
+    id: 'announcements',
+    label: 'Announcements',
+    category: 'office',
+  },
   message_templates: {
     id: 'message_templates',
     label: 'Message Templates',

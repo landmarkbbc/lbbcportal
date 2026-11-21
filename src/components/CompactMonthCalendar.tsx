@@ -9,7 +9,7 @@ import {
 import { useData } from '../context/DataContext';
 import {
   toDateString,
-  getRecurringDates
+  getServiceRecurringDates
 } from '../lib/dateTime';
 import { Person } from '../types';
 
@@ -18,6 +18,7 @@ interface CompactMonthCalendarProps {
   people: Person[];
   selectedDate?: Date | null;
   onFullView?: () => void;
+  isViewer?: boolean;
 }
 
 function isLeapYear(year: number): boolean {
@@ -43,7 +44,8 @@ export const CompactMonthCalendar: React.FC<CompactMonthCalendarProps> = ({
   onSelectDay,
   people,
   selectedDate,
-  onFullView
+  onFullView,
+  isViewer = false
 }) => {
   const { settings, regularServices, events, overrides } = useData();
   const [viewDate, setViewDate] = useState(() => new Date());
@@ -117,7 +119,7 @@ export const CompactMonthCalendar: React.FC<CompactMonthCalendarProps> = ({
 
     // 1. Regular services
     for (const service of regularServices) {
-      const dates = getRecurringDates(startStr, endStr, service.daysOfWeek);
+      const dates = getServiceRecurringDates(startStr, endStr, service);
       for (const d of dates) {
         const override = overrides.find(o => o.serviceId === service.id && o.date === d);
         if (override?.isCancelled) continue;
@@ -149,7 +151,11 @@ export const CompactMonthCalendar: React.FC<CompactMonthCalendarProps> = ({
   });
 
   return (
-    <div className="bg-surface rounded-2xl border border-subtle shadow-card p-4 sm:p-5 flex flex-col justify-between">
+    <div
+      className={`bg-surface border border-subtle p-4 sm:p-5 flex flex-col justify-between ${
+        isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'
+      }`}
+    >
       {/* Top Card Header: Monthly Calendar + Full View */}
       {onFullView && (
         <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-subtle">
@@ -164,7 +170,11 @@ export const CompactMonthCalendar: React.FC<CompactMonthCalendarProps> = ({
           <button
             type="button"
             onClick={onFullView}
-            className="text-xs font-semibold text-accent hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+            className={`text-xs font-semibold text-accent hover:underline flex items-center gap-1 cursor-pointer shrink-0 ${
+              isViewer
+                ? 'min-h-[44px] px-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
+                : ''
+            }`}
           >
             <span>Full View</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -185,7 +195,11 @@ export const CompactMonthCalendar: React.FC<CompactMonthCalendarProps> = ({
           <button
             type="button"
             onClick={handleResetToday}
-            className="text-[11px] font-semibold px-2 py-0.5 rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main cursor-pointer transition-colors"
+            className={`font-semibold rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main cursor-pointer transition-colors ${
+              isViewer
+                ? 'min-h-[44px] px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
+                : 'text-[11px] px-2 py-0.5'
+            }`}
             title="Jump to Today"
           >
             Today
@@ -193,7 +207,11 @@ export const CompactMonthCalendar: React.FC<CompactMonthCalendarProps> = ({
           <button
             type="button"
             onClick={handlePrevMonth}
-            className="p-1 rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main cursor-pointer transition-colors"
+            className={`rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main cursor-pointer transition-colors ${
+              isViewer
+                ? 'w-11 h-11 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
+                : 'p-1'
+            }`}
             title="Previous Month"
             aria-label="Previous Month"
           >
@@ -202,7 +220,11 @@ export const CompactMonthCalendar: React.FC<CompactMonthCalendarProps> = ({
           <button
             type="button"
             onClick={handleNextMonth}
-            className="p-1 rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main cursor-pointer transition-colors"
+            className={`rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main cursor-pointer transition-colors ${
+              isViewer
+                ? 'w-11 h-11 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
+                : 'p-1'
+            }`}
             title="Next Month"
             aria-label="Next Month"
           >

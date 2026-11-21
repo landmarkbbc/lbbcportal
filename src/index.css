@@ -893,6 +893,10 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
   .viewer-motion nav button[data-nav-active="true"] .nav-underline-bar {
     opacity: 0;
   }
+
+  .viewer-motion header[data-over-hero="true"] nav .viewer-nav-indicator {
+    background-color: #ffffff;
+  }
 }
 
 @supports not ((anchor-name: --viewer-active-nav) and (left: anchor(left))) {
@@ -902,7 +906,42 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
   }
 }
 
-/* 2. Page change: soft fade with gentle upward slide (~0.45s) */
+/* 2. Page change: soft fade with gentle upward slide (~0.45s), plus touch swipe horizontal slide */
+@keyframes viewerSwipeFromRight {
+  0% {
+    opacity: 0.72;
+    transform: translate3d(28px, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes viewerSwipeFromLeft {
+  0% {
+    opacity: 0.72;
+    transform: translate3d(-28px, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.viewer-motion .viewer-swipe-from-right {
+  animation: viewerSwipeFromRight 0.24s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.viewer-motion .viewer-swipe-from-left {
+  animation: viewerSwipeFromLeft 0.24s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.viewer-motion .viewer-swipe-from-right .motion-page-enter,
+.viewer-motion .viewer-swipe-from-left .motion-page-enter {
+  animation: none;
+}
+
 .viewer-motion .motion-page-enter:not(.viewer-home-page) {
   animation: viewerPageEnter 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
@@ -951,51 +990,66 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
 .viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-cards > div:nth-child(3) { animation-delay: 0.52s; }
 .viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-cards > div:nth-child(4) { animation-delay: 0.58s; }
 
-/* 4. Viewer cards & buttons: soft hover lift + shadow/glow + click press-down (~0.25s) */
+/* 4. Viewer cards & buttons: flat surfaces, thin borders, crisp border hover (no heavy shadows) */
+@keyframes viewerHeroCue {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.72;
+  }
+  50% {
+    transform: translate3d(0, 4px, 0);
+    opacity: 1;
+  }
+}
+
+.viewer-hero-cue {
+  animation: viewerHeroCue 2.6s ease-in-out infinite;
+}
+
+.viewer-motion .shadow-card {
+  box-shadow: none;
+}
+
 .viewer-motion .motion-card,
 .viewer-motion .viewer-card {
   transition:
-    border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (hover: hover) {
   .viewer-motion .motion-card:hover,
   .viewer-motion .viewer-card:hover {
-    transform: translate3d(0, -3px, 0);
-    box-shadow:
-      0 10px 24px -6px rgb(0 0 0 / 0.12),
-      0 0 0 1px color-mix(in srgb, var(--accent-base) 22%, transparent);
+    transform: translate3d(0, -1px, 0);
+    border-color: var(--border-strong);
+    box-shadow: none;
   }
 }
 
 .viewer-motion .motion-card.cursor-pointer:active,
 .viewer-motion .viewer-card.cursor-pointer:active {
-  transform: translate3d(0, -1px, 0) scale(0.985);
+  transform: scale(0.992);
 }
 
 .viewer-motion button:not(:disabled):not([class*="cal-day-cell"]):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-bg):not(.viewer-welcome-bg *) {
   transition:
-    background-color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    color 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (hover: hover) {
   .viewer-motion button:not(:disabled):not([class*="cal-day-cell"]):not(header nav button):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-bg):not(.viewer-welcome-bg *):is(.bg-accent, .border, .shadow-xs, .shadow-card, .shadow-lg):hover {
-    transform: translate3d(0, -1.5px, 0);
-    box-shadow:
-      0 6px 16px -4px color-mix(in srgb, var(--accent-base) 28%, rgb(0 0 0 / 0.14));
+    transform: none;
+    box-shadow: none;
   }
 }
 
 .viewer-motion button:not(:disabled):not([class*="cal-day-cell"]):not(header nav button):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-bg):not(.viewer-welcome-bg *):active {
-  transform: scale(0.97);
+  transform: scale(0.985);
 }
 
 /* 5. Calendar month opacity fade (zero cell movement) & day popup (~0.35s) */
@@ -1115,7 +1169,10 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
   .viewer-motion .viewer-calendar-month-fade,
   .viewer-motion .viewer-note-sent,
   .viewer-motion .viewer-floating-note-btn,
-  .viewer-motion .viewer-scroll-section {
+  .viewer-motion .viewer-scroll-section,
+  .viewer-motion .viewer-swipe-from-right,
+  .viewer-motion .viewer-swipe-from-left,
+  .viewer-hero-cue {
     animation: none !important;
     animation-timeline: none !important;
     opacity: 1 !important;

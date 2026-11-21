@@ -15,6 +15,8 @@ export interface AppSettings {
   facebookLink?: string;
   messengerChatLink?: string;
   aiStudioLink?: string;
+  homeWelcomeLine?: string;
+  homeIntroText?: string;
   clockStyle?: ClockStyle;
   clockColor?: ClockColor;
   showDailyVerse?: boolean;
@@ -44,6 +46,8 @@ export interface PublicBranding {
   churchName: string;
   churchLogo: string;
   facebookLink?: string;
+  homeWelcomeLine?: string;
+  homeIntroText?: string;
   theme?: ThemeBase;
   colorScheme?: ColorScheme;
   accentColor: AccentColor;
@@ -173,6 +177,9 @@ export interface RequiredRoleSpec {
   count: number;
 }
 
+export type WeekOfMonthPattern = 'every' | 'only' | 'except';
+export type WeekOfMonthValue = 1 | 2 | 3 | 4 | 'last';
+
 export interface RegularService {
   id: string;
   name: string;
@@ -184,6 +191,8 @@ export interface RegularService {
   color: string;
   requiredRoles: RequiredRoleSpec[];
   kind?: 'service' | 'activity';
+  weekPattern?: WeekOfMonthPattern;
+  weekNumbers?: WeekOfMonthValue[];
   createdAt: string;
   updatedAt: string;
 }
@@ -269,6 +278,8 @@ export interface CalendarOccurrence {
   isOverridden?: boolean;
   overrideId?: string;
   serviceKind?: 'service' | 'activity';
+  weekPattern?: WeekOfMonthPattern;
+  weekNumbers?: WeekOfMonthValue[];
 }
 
 export type TaskPriority = 'low' | 'normal' | 'high';
@@ -497,6 +508,12 @@ export const DEFAULT_VISITOR_AGE_GROUPS: VisitorAgeGroupRule[] = [
   { id: 'seniors', label: 'Seniors', minAge: 60 }
 ];
 
-
-
-
+export interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  pinned: boolean;
+  showUntil?: string; // Optional YYYY-MM-DD local date string (active through end of this date)
+  createdAt: string;
+  updatedAt: string;
+}

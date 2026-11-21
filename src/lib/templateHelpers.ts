@@ -8,7 +8,13 @@ import {
   RoleAssignment,
   SentReminder
 } from '../types';
-import { parseDateString, toDateString, formatTime, formatDate } from './dateTime';
+import {
+  parseDateString,
+  toDateString,
+  formatTime,
+  formatDate,
+  doesRegularServiceOccurOnDate
+} from './dateTime';
 
 export interface OccurrenceItem {
   id: string; // `${type}_${sourceId}_${date}`
@@ -92,7 +98,7 @@ export function getUpcomingOccurrences(
 
     // Regular services
     for (const s of regularServices) {
-      if (s.daysOfWeek.includes(dayOfWeek)) {
+      if (doesRegularServiceOccurOnDate(s, d)) {
         const override = overrides.find(o => o.serviceId === s.id && o.date === dateStr);
         if (override?.isCancelled) continue;
 

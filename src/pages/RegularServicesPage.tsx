@@ -8,14 +8,22 @@ import {
   Calendar,
   Users,
   X,
-  Minus
+  Minus,
+  Repeat
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { RegularService, RequiredRoleSpec, OutlineNode } from '../types';
-import { formatTime } from '../lib/dateTime';
+import {
+  RegularService,
+  RequiredRoleSpec,
+  OutlineNode,
+  WeekOfMonthPattern,
+  WeekOfMonthValue
+} from '../types';
+import { formatTime, formatWeekPatternBadge } from '../lib/dateTime';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { PageLoading, Spinner } from '../components/LoadingIndicator';
+import { WeekOfMonthSelector } from '../components/WeekOfMonthSelector';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const FULL_DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -66,6 +74,9 @@ export const RegularServicesPage: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [color, setColor] = useState('#881337');
   const [requiredRoles, setRequiredRoles] = useState<RequiredRoleSpec[]>([]);
+  const [weekPattern, setWeekPattern] = useState<WeekOfMonthPattern>('every');
+  const [weekNumbers, setWeekNumbers] = useState<WeekOfMonthValue[]>([]);
+  const [weekValidationError, setWeekValidationError] = useState(false);
 
   // Selected role to add to service spec
   const [roleToAddId, setRoleToAddId] = useState('');
@@ -143,6 +154,9 @@ export const RegularServicesPage: React.FC = () => {
     setNotes('');
     setColor(PRESET_COLORS[0]);
     setRequiredRoles([]);
+    setWeekPattern('every');
+    setWeekNumbers([]);
+    setWeekValidationError(false);
     setRoleToAddId('');
     setIsModalOpen(true);
   };
@@ -158,6 +172,9 @@ export const RegularServicesPage: React.FC = () => {
     setNotes('');
     setColor(PRESET_COLORS[1]);
     setRequiredRoles([]);
+    setWeekPattern('every');
+    setWeekNumbers([]);
+    setWeekValidationError(false);
     setRoleToAddId('');
     setIsModalOpen(true);
   };
@@ -174,6 +191,9 @@ export const RegularServicesPage: React.FC = () => {
     setNotes(item.notes || '');
     setColor(item.color || PRESET_COLORS[0]);
     setRequiredRoles(item.requiredRoles || []);
+    setWeekPattern(item.weekPattern || 'every');
+    setWeekNumbers(item.weekNumbers || []);
+    setWeekValidationError(false);
     setRoleToAddId('');
     setIsModalOpen(true);
   };
@@ -218,6 +238,11 @@ export const RegularServicesPage: React.FC = () => {
     e.preventDefault();
     if (!name.trim() || isSubmitting) return;
 
+    if (modalKind === 'activity' && weekPattern !== 'every' && weekNumbers.length === 0) {
+      setWeekValidationError(true);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (editingService) {
@@ -233,6 +258,13 @@ export const RegularServicesPage: React.FC = () => {
         };
         if (editingService.kind === 'activity') {
           updates.kind = 'activity';
+          if (weekPattern === 'every') {
+            updates.weekPattern = 'every';
+            updates.weekNumbers = [];
+          } else {
+            updates.weekPattern = weekPattern;
+            updates.weekNumbers = weekNumbers;
+          }
         }
         await updateRegularService(editingService.id, updates);
       } else {
@@ -245,7 +277,10 @@ export const RegularServicesPage: React.FC = () => {
           notes: notes.trim(),
           color,
           requiredRoles,
-          ...(modalKind === 'activity' ? { kind: 'activity' } : {})
+          ...(modalKind === 'activity' ? { kind: 'activity' } : {}),
+          ...(modalKind === 'activity' && weekPattern !== 'every'
+            ? { weekPattern, weekNumbers }
+            : {})
         };
         await addRegularService(newRecord);
       }
@@ -263,6 +298,7 @@ export const RegularServicesPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 motion-list-enter viewer-stagger-grid">
         {items.map((item) => {
           const dayNames = item.daysOfWeek.map(d => DAY_LABELS[d]).join(', ');
+          const weekBadge = formatWeekPatternBadge(item);
 
           return (
             <div
@@ -325,6 +361,12 @@ export const RegularServicesPage: React.FC = () => {
                         <span className="truncate">{item.location}</span>
                       </div>
                     )}
+                    {weekBadge && (
+                      <div className="flex items-center gap-1.5 text-accent font-medium pt-0.5">
+                        <Repeat className="w-3.5 h-3.5 shrink-0" />
+                        <span>{weekBadge}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -360,7 +402,7 @@ export const RegularServicesPage: React.FC = () => {
               </div>
 
               <div className="mt-5 pt-3 border-t border-subtle text-[11px] text-mut flex items-center justify-between">
-                <span>Weekly Recurring</span>
+                <span>{weekBadge ? 'Monthly Pattern' : 'Weekly Recurring'}</span>
                 <span className="text-accent font-medium">Auto-populates calendar</span>
               </div>
             </div>
@@ -558,6 +600,26 @@ export const RegularServicesPage: React.FC = () => {
                   Select one or multiple days (e.g. both Sunday and Wednesday).
                 </span>
               </div>
+
+              {/* Which Weeks of the Month (Regular Activities only) */}
+              {isActivityModal && (
+                <WeekOfMonthSelector
+                  selectedDays={selectedDays}
+                  weekPattern={weekPattern}
+                  weekNumbers={weekNumbers}
+                  showValidationError={weekValidationError}
+                  onChangePattern={(pattern) => {
+                    setWeekPattern(pattern);
+                    setWeekValidationError(false);
+                  }}
+                  onChangeWeekNumbers={(weeks) => {
+                    setWeekNumbers(weeks);
+                    if (weeks.length > 0) {
+                      setWeekValidationError(false);
+                    }
+                  }}
+                />
+              )}
 
               {/* Times */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

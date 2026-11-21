@@ -45,7 +45,8 @@ import {
   getDaysOfWeekRange,
   toDateString,
   parseDateString,
-  getRecurringDates
+  getServiceRecurringDates,
+  formatWeekPatternBadge
 } from '../lib/dateTime';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { OccurrenceDetailsModal } from '../components/OccurrenceDetailsModal';
@@ -228,7 +229,7 @@ export const CalendarPage: React.FC = () => {
 
     // 1. Regular Services and Activities occurrences
     for (const s of regularServices) {
-      const dates = getRecurringDates(gridStartStr, gridEndStr, s.daysOfWeek);
+      const dates = getServiceRecurringDates(gridStartStr, gridEndStr, s);
       const isActivity = s.kind === 'activity';
       for (const d of dates) {
         const override = overrides.find(o => o.serviceId === s.id && o.date === d);
@@ -246,7 +247,9 @@ export const CalendarPage: React.FC = () => {
           isCancelled: override?.isCancelled || false,
           isOverridden: !!override,
           overrideId: override?.id,
-          serviceKind: isActivity ? 'activity' : 'service'
+          serviceKind: isActivity ? 'activity' : 'service',
+          weekPattern: s.weekPattern,
+          weekNumbers: s.weekNumbers
         });
       }
     }
@@ -595,7 +598,7 @@ export const CalendarPage: React.FC = () => {
     : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 motion-page-enter">
+    <div className={`${isViewer ? 'max-w-[1100px]' : 'max-w-7xl'} mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 motion-page-enter`}>
       {/* Top Header & Action Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-subtle">
         <div>
@@ -638,7 +641,7 @@ export const CalendarPage: React.FC = () => {
       ) : (
         <>
       {/* Calendar Controls & Filters Bar */}
-      <div className="bg-surface rounded-2xl border border-subtle shadow-card p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className={`bg-surface border border-subtle p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
         {/* Month Navigation */}
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-bold text-main min-w-[160px]">
@@ -648,7 +651,9 @@ export const CalendarPage: React.FC = () => {
             <button
               type="button"
               onClick={prevMonth}
-              className="p-1.5 rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main transition-colors"
+              className={`rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                isViewer ? 'min-w-[44px] min-h-[44px] inline-flex items-center justify-center cursor-pointer' : 'p-1.5'
+              }`}
               aria-label="Previous month"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -656,14 +661,18 @@ export const CalendarPage: React.FC = () => {
             <button
               type="button"
               onClick={goToToday}
-              className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main transition-colors"
+              className={`text-xs font-semibold rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                isViewer ? 'px-3.5 min-h-[44px] cursor-pointer' : 'px-2.5 py-1'
+              }`}
             >
               Today
             </button>
             <button
               type="button"
               onClick={nextMonth}
-              className="p-1.5 rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main transition-colors"
+              className={`rounded-lg border border-subtle hover:bg-subtle text-sec hover:text-main transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                isViewer ? 'min-w-[44px] min-h-[44px] inline-flex items-center justify-center cursor-pointer' : 'p-1.5'
+              }`}
               aria-label="Next month"
             >
               <ChevronRight className="w-4 h-4" />
@@ -674,24 +683,30 @@ export const CalendarPage: React.FC = () => {
         {/* View Mode & Filter Toggles */}
         <div className="flex flex-wrap items-center gap-2">
           {/* View Mode */}
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-subtle border border-subtle">
+          <div className={`flex items-center gap-1 p-1 bg-subtle border border-subtle ${isViewer ? 'rounded-xl' : 'rounded-xl'}`}>
             <button
               type="button"
               onClick={() => setViewMode('month')}
-              className={`p-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`rounded-lg text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                isViewer ? 'min-w-[44px] min-h-[44px] inline-flex items-center justify-center cursor-pointer' : 'p-1.5'
+              } ${
                 viewMode === 'month' ? 'bg-surface text-main shadow-xs' : 'text-sec hover:text-main'
               }`}
               title="Month Grid"
+              aria-label="Month Grid"
             >
               <CalendarDays className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`rounded-lg text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                isViewer ? 'min-w-[44px] min-h-[44px] inline-flex items-center justify-center cursor-pointer' : 'p-1.5'
+              } ${
                 viewMode === 'list' ? 'bg-surface text-main shadow-xs' : 'text-sec hover:text-main'
               }`}
               title="List View"
+              aria-label="List View"
             >
               <List className="w-4 h-4" />
             </button>
@@ -701,7 +716,9 @@ export const CalendarPage: React.FC = () => {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as any)}
-            className="px-3 py-1.5 rounded-xl border border-subtle bg-field text-main text-xs font-medium focus:outline-none focus:ring-2 focus:ring-accent/40"
+            className={`px-3 border border-subtle bg-field text-main text-xs font-medium focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+              isViewer ? 'min-h-[44px] rounded-lg' : 'py-1.5 rounded-xl'
+            }`}
           >
             <option value="all">All (Services & Events)</option>
             <option value="services">Services Only</option>
@@ -714,7 +731,9 @@ export const CalendarPage: React.FC = () => {
             <select
               value={selectedCategoryFilter}
               onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-subtle bg-field text-main text-xs font-medium focus:outline-none focus:ring-2 focus:ring-accent/40"
+              className={`px-3 border border-subtle bg-field text-main text-xs font-medium focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+                isViewer ? 'min-h-[44px] rounded-lg' : 'py-1.5 rounded-xl'
+              }`}
             >
               <option value="all">All Categories</option>
               {categories.map(c => (
@@ -724,7 +743,9 @@ export const CalendarPage: React.FC = () => {
           )}
 
           {/* Show Services Toggle */}
-          <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-subtle bg-surface text-main text-xs font-medium cursor-pointer hover:bg-subtle select-none transition-colors">
+          <label className={`flex items-center gap-1.5 px-3 border border-subtle bg-surface text-main text-xs font-medium cursor-pointer hover:bg-subtle select-none transition-colors ${
+            isViewer ? 'min-h-[44px] rounded-lg' : 'py-1.5 rounded-xl'
+          }`}>
             <input
               type="checkbox"
               checked={showServices}
@@ -736,7 +757,9 @@ export const CalendarPage: React.FC = () => {
           </label>
 
           {/* Show Birthdays Toggle */}
-          <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-subtle bg-surface text-main text-xs font-medium cursor-pointer hover:bg-subtle select-none transition-colors">
+          <label className={`flex items-center gap-1.5 px-3 border border-subtle bg-surface text-main text-xs font-medium cursor-pointer hover:bg-subtle select-none transition-colors ${
+            isViewer ? 'min-h-[44px] rounded-lg' : 'py-1.5 rounded-xl'
+          }`}>
             <input
               type="checkbox"
               checked={showBirthdays}
@@ -762,7 +785,9 @@ export const CalendarPage: React.FC = () => {
           )}
 
           {/* Hide Past Days Toggle (List view) */}
-          <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-subtle bg-surface text-main text-xs font-medium cursor-pointer hover:bg-subtle select-none transition-colors">
+          <label className={`flex items-center gap-1.5 px-3 border border-subtle bg-surface text-main text-xs font-medium cursor-pointer hover:bg-subtle select-none transition-colors ${
+            isViewer ? 'min-h-[44px] rounded-lg' : 'py-1.5 rounded-xl'
+          }`}>
             <input
               type="checkbox"
               checked={hidePastDays}
@@ -778,7 +803,9 @@ export const CalendarPage: React.FC = () => {
             <button
               type="button"
               onClick={handleJumpToToday}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-accent/50 bg-accent-tint hover:bg-accent-tint-strong text-accent text-xs font-semibold cursor-pointer transition-colors"
+              className={`flex items-center gap-1.5 px-3 border border-accent/50 bg-accent-tint hover:bg-accent-tint-strong text-accent text-xs font-semibold cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                isViewer ? 'min-h-[44px] rounded-lg' : 'py-1.5 rounded-xl'
+              }`}
             >
               <LocateFixed className="w-3.5 h-3.5 shrink-0" />
               <span>Jump to today</span>
@@ -789,7 +816,7 @@ export const CalendarPage: React.FC = () => {
 
       {/* ================= VIEW 1: MONTH VIEW ================= */}
       {viewMode === 'month' && (
-        <div className="bg-surface rounded-2xl border border-subtle shadow-card overflow-hidden">
+        <div className={`bg-surface border border-subtle overflow-hidden ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
           {/* Weekday Header */}
           <div className="grid grid-cols-7 border-b border-subtle bg-subtle/50 text-center py-2.5 text-xs font-bold uppercase tracking-wider text-mut">
             {weekHeaders.map(day => (
@@ -906,7 +933,7 @@ export const CalendarPage: React.FC = () => {
         <div ref={listTopRef} className="space-y-4">
           {visibleListItemsByDate.length === 0 ? (
             hidePastDays && (isViewedMonthPast || listItemsByDate.length > 0) ? (
-              <div className="p-10 sm:p-12 rounded-2xl bg-surface border border-subtle text-center space-y-3.5 shadow-card">
+              <div className={`p-10 sm:p-12 bg-surface border border-subtle text-center space-y-3.5 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
                 <div className="w-12 h-12 rounded-2xl bg-accent-tint text-accent mx-auto flex items-center justify-center">
                   <EyeOff className="w-6 h-6" />
                 </div>
@@ -916,13 +943,15 @@ export const CalendarPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => handleSetHidePastDays(false)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent hover:bg-accent-hover text-accent-contrast text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  className={`inline-flex items-center gap-1.5 px-4 bg-accent hover:bg-accent-hover text-accent-contrast text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                    isViewer ? 'min-h-[44px] rounded-lg' : 'py-2 rounded-xl shadow-xs'
+                  }`}
                 >
                   Turn off &apos;Hide past days&apos;
                 </button>
               </div>
             ) : (
-              <div className="p-12 rounded-2xl bg-surface border border-subtle text-center space-y-3 shadow-card">
+              <div className={`p-12 bg-surface border border-subtle text-center space-y-3 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
                 <div className="w-14 h-14 rounded-2xl bg-accent-tint text-accent mx-auto flex items-center justify-center">
                   <CalendarIcon className="w-7 h-7" />
                 </div>
@@ -933,7 +962,7 @@ export const CalendarPage: React.FC = () => {
               </div>
             )
           ) : (
-            <div className="bg-surface rounded-2xl border border-subtle shadow-card divide-y divide-subtle overflow-hidden motion-list-enter">
+            <div className={`bg-surface border border-subtle divide-y divide-subtle overflow-hidden motion-list-enter ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
               {visibleListItemsByDate.map(({ dateStr, dateObj, occurrences, birthdays }) => {
                 const isToday = dateStr === todayStr;
 
@@ -1055,6 +1084,16 @@ export const CalendarPage: React.FC = () => {
                                     <span>{occ.location}</span>
                                   </span>
                                 )}
+                                {occ.type === 'regular_service' && (() => {
+                                  const srv = regularServices.find(s => s.id === occ.sourceId);
+                                  const weekBadge = srv ? formatWeekPatternBadge(srv) : '';
+                                  if (!weekBadge) return null;
+                                  return (
+                                    <span className="text-[11px] font-medium text-accent">
+                                      {weekBadge}
+                                    </span>
+                                  );
+                                })()}
                               </div>
 
                               {/* Important roles directly under each service (icon + person) */}

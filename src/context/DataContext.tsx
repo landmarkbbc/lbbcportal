@@ -8,7 +8,8 @@ import {
   onSnapshot,
   writeBatch,
   waitForPendingWrites,
-  getDocs
+  getDocs,
+  deleteField
 } from 'firebase/firestore';
 import { db, sanitizeForFirestore } from '../lib/firebase';
 import { APP_COLLECTIONS } from '../lib/backupRegistry';
@@ -58,7 +59,8 @@ import {
   IdleTimeoutMinutes,
   ViewerNote,
   ViewerNoteStatus,
-  LoginBackgroundConfig
+  LoginBackgroundConfig,
+  Announcement
 } from '../types';
 import { clampLoginDimming } from '../lib/brandingCache';
 
@@ -92,6 +94,7 @@ export interface DataLoadingState {
   visitors: boolean;
   forerunner: boolean;
   viewerNotes: boolean;
+  announcements: boolean;
 }
 
 interface DataContextType {
@@ -225,6 +228,12 @@ interface DataContextType {
   updateViewerNoteStatus: (id: string, status: ViewerNoteStatus) => Promise<void>;
   deleteViewerNote: (id: string) => Promise<void>;
 
+  // Announcements
+  announcements: Announcement[];
+  addAnnouncement: (input: { title: string; message: string; pinned: boolean; showUntil?: string }) => Promise<string>;
+  updateAnnouncement: (id: string, updates: { title?: string; message?: string; pinned?: boolean; showUntil?: string }) => Promise<void>;
+  deleteAnnouncement: (id: string) => Promise<void>;
+
   // Active Save / AI / Download Guard for Idle Logout
   isBusyOperation: boolean;
   beginBusyOperation: () => void;
@@ -248,6 +257,8 @@ const defaultSettings: AppSettings = {
   facebookLink: '',
   messengerChatLink: '',
   aiStudioLink: '',
+  homeWelcomeLine: '',
+  homeIntroText: '',
   clockStyle: 'digital',
   clockColor: 'white',
   showDailyVerse: true,
@@ -301,6 +312,8 @@ function buildPublicBrandingPayload(appSettings: AppSettings, vSettings: ViewerS
     churchName: appSettings.churchName || 'Our Church',
     churchLogo: appSettings.churchLogo || '',
     facebookLink: appSettings.facebookLink || '',
+    homeWelcomeLine: appSettings.homeWelcomeLine || '',
+    homeIntroText: appSettings.homeIntroText || '',
     theme: normalized.theme,
     colorScheme: normalized.colorScheme,
     accentColor: normalizeAccentColor(appSettings.accentColor, 'red'),
@@ -321,9 +334,18 @@ function buildPublicBrandingPayload(appSettings: AppSettings, vSettings: ViewerS
 const VIEWER_PREFS_STORAGE_KEY = 'lbbc_viewer_device_prefs_v1';
 
 interface ViewerDevicePrefs {
-  theme?: ThemeBase;
   colorScheme?: ColorScheme;
-  accentColor?: AccentColor;
+}
+
+function getDevicePreferredColorScheme(): ColorScheme {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return 'light';
+  }
+  try {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
 }
 
 function loadViewerDevicePrefs(): ViewerDevicePrefs {
@@ -331,17 +353,10 @@ function loadViewerDevicePrefs(): ViewerDevicePrefs {
   try {
     const raw = window.localStorage.getItem(VIEWER_PREFS_STORAGE_KEY);
     if (!raw) return {};
-    const parsed = JSON.parse(raw) as { theme?: unknown; colorScheme?: unknown; accentColor?: unknown };
+    const parsed = JSON.parse(raw) as { colorScheme?: unknown };
     const prefs: ViewerDevicePrefs = {};
-    if (parsed.theme !== undefined) {
-      const normalized = normalizeAppearance(parsed.theme, parsed.colorScheme);
-      prefs.theme = normalized.theme;
-      prefs.colorScheme = normalized.colorScheme;
-    } else if (isValidColorScheme(parsed.colorScheme)) {
+    if (isValidColorScheme(parsed?.colorScheme)) {
       prefs.colorScheme = parsed.colorScheme;
-    }
-    if (parsed.accentColor === 'maroon' || isValidAccentColor(parsed.accentColor)) {
-      prefs.accentColor = normalizeAccentColor(parsed.accentColor);
     }
     return prefs;
   } catch {
@@ -352,7 +367,7 @@ function loadViewerDevicePrefs(): ViewerDevicePrefs {
 function saveViewerDevicePrefs(prefs: ViewerDevicePrefs): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(VIEWER_PREFS_STORAGE_KEY, JSON.stringify(prefs));
+    window.localStorage.setItem(VIEWER_PREFS_STORAGE_KEY, JSON.stringify({ colorScheme: prefs.colorScheme }));
   } catch {
     // Ignore storage quota or private browsing errors cleanly
   }
@@ -391,6 +406,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [viewerSettings, setViewerSettings] = useState<ViewerSettings>(defaultViewerSettings);
   const [viewerNotes, setViewerNotes] = useState<ViewerNote[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [busyOperationCount, setBusyOperationCount] = useState<number>(0);
   const [forerunnerSettings, setForerunnerSettings] = useState<ForerunnerFormatSettings>({
     fontName: 'Abadi',
@@ -458,18 +474,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const secretaryAppearance = normalizeAppearance(settings.theme, settings.colorScheme);
 
   const activeTheme: ThemeBase = isViewer
-    ? (viewerPrefs.theme ?? baseBrandingAppearance.theme)
+    ? DEFAULT_THEME_ID
     : isSecretary
       ? secretaryAppearance.theme
       : baseBrandingAppearance.theme;
   const activeColorScheme: ColorScheme = isViewer
-    ? (viewerPrefs.colorScheme ?? baseBrandingAppearance.colorScheme)
+    ? (viewerPrefs.colorScheme ?? getDevicePreferredColorScheme())
     : isSecretary
       ? secretaryAppearance.colorScheme
       : baseBrandingAppearance.colorScheme;
   const activeAccent = normalizeAccentColor(
     isViewer
-      ? (viewerPrefs.accentColor || publicBranding.accentColor)
+      ? publicBranding.accentColor
       : isSecretary
         ? settings.accentColor
         : publicBranding.accentColor,
@@ -614,22 +630,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setBannerImage('');
       setViewerSettings(defaultViewerSettings);
       setViewerNotes([]);
+      setAnnouncements([]);
     };
 
-    if (!currentUser) {
-      hasSyncedPublicBrandingRef.current = false;
-      hasSyncedPeoplePublicRef.current = false;
+    if (!currentUser || (isViewer && !viewerUnlocked)) {
+      if (!currentUser) {
+        hasSyncedPublicBrandingRef.current = false;
+        hasSyncedPeoplePublicRef.current = false;
+      }
       clearAllRoleData();
       setSettings(defaultSettings);
       setCloudError(null);
       setSaveStatus({ state: 'idle' });
-      setLoadedCollections({});
-      setCollectionErrors({});
-      return;
-    }
-
-    if (isViewer && !viewerUnlocked) {
-      clearAllRoleData();
       setLoadedCollections({});
       setCollectionErrors({});
       return;
@@ -763,6 +775,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSchedules(items);
       },
       () => setSchedules([])
+    );
+
+    attachResilientSnapshot(
+      'announcements',
+      APP_COLLECTIONS.announcements.id,
+      (onNext, onErr) => onSnapshot(collection(db, APP_COLLECTIONS.announcements.id), onNext, onErr),
+      (snap) => {
+        const items = snap.docs.map((d: any) => ({ ...d.data(), id: d.id } as Announcement));
+        items.sort((a: Announcement, b: Announcement) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return (b.createdAt || '').localeCompare(a.createdAt || '');
+        });
+        setAnnouncements(items);
+      },
+      () => setAnnouncements([])
     );
 
     if (isViewer) {
@@ -1094,6 +1121,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       publicBranding.churchName !== desired.churchName ||
       publicBranding.churchLogo !== desired.churchLogo ||
       (publicBranding.facebookLink || '') !== (desired.facebookLink || '') ||
+      (publicBranding.homeWelcomeLine || '') !== (desired.homeWelcomeLine || '') ||
+      (publicBranding.homeIntroText || '') !== (desired.homeIntroText || '') ||
       publicBranding.theme !== desired.theme ||
       (publicBranding.colorScheme || DEFAULT_COLOR_SCHEME) !== desired.colorScheme ||
       publicBranding.accentColor !== desired.accentColor ||
@@ -1162,23 +1191,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })();
   }, [isSecretary, loadedCollections.people, people]);
 
-  // Update Settings (Viewer updates device-only localStorage; Secretary updates Firestore)
+  // Update Settings (Viewer updates colorScheme only in localStorage; Secretary updates Firestore)
   const updateSettings = async (newSettings: Partial<AppSettings>) => {
     if (isViewer) {
-      setViewerPrefs(prev => {
-        const next: ViewerDevicePrefs = { ...prev };
-        if (newSettings.theme && isValidThemeId(newSettings.theme)) {
-          next.theme = newSettings.theme;
-        }
-        if (newSettings.colorScheme && isValidColorScheme(newSettings.colorScheme)) {
-          next.colorScheme = newSettings.colorScheme;
-        }
-        if (newSettings.accentColor && isValidAccentColor(newSettings.accentColor)) {
-          next.accentColor = newSettings.accentColor;
-        }
-        saveViewerDevicePrefs(next);
-        return next;
-      });
+      if (newSettings.colorScheme && isValidColorScheme(newSettings.colorScheme)) {
+        const nextScheme = newSettings.colorScheme;
+        setViewerPrefs(() => {
+          const next: ViewerDevicePrefs = { colorScheme: nextScheme };
+          saveViewerDevicePrefs(next);
+          return next;
+        });
+      }
       return;
     }
     if (!isSecretary) return;
@@ -2200,25 +2223,131 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await updateNote(id, { pinned: nextPinned });
   };
 
+  // ---------------- ANNOUNCEMENTS ----------------
+  const addAnnouncement = async (input: {
+    title: string;
+    message: string;
+    pinned: boolean;
+    showUntil?: string;
+  }): Promise<string> => {
+    if (!isSecretary) return '';
+    const cleanTitle = input.title.trim().slice(0, 120);
+    const cleanMessage = input.message.trim().slice(0, 2000);
+    if (!cleanTitle || !cleanMessage) {
+      throw new Error('Title and message are required.');
+    }
+    const cleanShowUntil =
+      typeof input.showUntil === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.showUntil.trim())
+        ? input.showUntil.trim()
+        : undefined;
+    const id = 'ann_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36).slice(-4);
+    const now = new Date().toISOString();
+    const newAnnouncement: Announcement = {
+      id,
+      title: cleanTitle,
+      message: cleanMessage,
+      pinned: Boolean(input.pinned),
+      ...(cleanShowUntil ? { showUntil: cleanShowUntil } : {}),
+      createdAt: now,
+      updatedAt: now,
+    };
+    await executeServerConfirmedWrite(`Post Announcement "${cleanTitle}"`, `announcements/${id}`, async () => {
+      await setDoc(doc(db, 'announcements', id), sanitizeForFirestore(newAnnouncement));
+    });
+    return id;
+  };
+
+  const updateAnnouncement = async (
+    id: string,
+    updates: {
+      title?: string;
+      message?: string;
+      pinned?: boolean;
+      showUntil?: string;
+    }
+  ): Promise<void> => {
+    if (!isSecretary) return;
+    const now = new Date().toISOString();
+    const cleanUpdates: Record<string, any> = { updatedAt: now };
+    const localPatch: Partial<Announcement> = { updatedAt: now };
+    let shouldDeleteShowUntil = false;
+
+    if (updates.title !== undefined) {
+      const cleanTitle = updates.title.trim().slice(0, 120);
+      if (!cleanTitle) throw new Error('Title is required.');
+      cleanUpdates.title = cleanTitle;
+      localPatch.title = cleanTitle;
+    }
+    if (updates.message !== undefined) {
+      const cleanMessage = updates.message.trim().slice(0, 2000);
+      if (!cleanMessage) throw new Error('Message is required.');
+      cleanUpdates.message = cleanMessage;
+      localPatch.message = cleanMessage;
+    }
+    if (updates.pinned !== undefined) {
+      cleanUpdates.pinned = Boolean(updates.pinned);
+      localPatch.pinned = Boolean(updates.pinned);
+    }
+    if ('showUntil' in updates) {
+      const rawDate = typeof updates.showUntil === 'string' ? updates.showUntil.trim() : '';
+      if (rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+        cleanUpdates.showUntil = rawDate;
+        localPatch.showUntil = rawDate;
+      } else {
+        shouldDeleteShowUntil = true;
+        localPatch.showUntil = undefined;
+      }
+    }
+
+    setAnnouncements(prev =>
+      prev.map(a => {
+        if (a.id !== id) return a;
+        const next: Announcement = { ...a, ...localPatch };
+        if (shouldDeleteShowUntil) {
+          delete next.showUntil;
+        }
+        return next;
+      })
+    );
+
+    const firestorePayload = sanitizeForFirestore(cleanUpdates);
+    if (shouldDeleteShowUntil) {
+      firestorePayload.showUntil = deleteField();
+    }
+
+    await executeServerConfirmedWrite('Update Announcement', `announcements/${id}`, async () => {
+      await updateDoc(doc(db, 'announcements', id), firestorePayload);
+    });
+  };
+
+  const deleteAnnouncement = async (id: string): Promise<void> => {
+    if (!isSecretary) return;
+    setAnnouncements(prev => prev.filter(a => a.id !== id));
+    await executeServerConfirmedWrite('Delete Announcement', `announcements/${id}`, async () => {
+      await deleteDoc(doc(db, 'announcements', id));
+    });
+  };
+
   // Computed: Assignable roles from outline tree (any node marked as role or has attached people or is a leaf)
   const assignableRoles = useMemo(() => {
     return nodes.filter(n => n.isRole || (n.assignedPeopleIds && n.assignedPeopleIds.length > 0));
   }, [nodes]);
 
   // Effective role-scoped state:
-  // Viewers receive publicBranding + publicBannerImage + sanitized peoplePublic + device-only viewerPrefs.
+  // Viewers receive publicBranding + publicBannerImage + sanitized peoplePublic + device-only colorScheme preference.
   const effectiveSettings = useMemo<AppSettings>(() => {
     if (!isViewer) return settings;
-    const baseAppearance = normalizeAppearance(publicBranding.theme, publicBranding.colorScheme);
     return {
       ...defaultSettings,
       churchName: publicBranding.churchName || DEFAULT_PUBLIC_BRANDING.churchName,
       churchLogo: publicBranding.churchLogo || '',
       secretaryName: '',
       facebookLink: publicBranding.facebookLink || '',
-      theme: viewerPrefs.theme ?? baseAppearance.theme,
-      colorScheme: viewerPrefs.colorScheme ?? baseAppearance.colorScheme,
-      accentColor: normalizeAccentColor(viewerPrefs.accentColor || publicBranding.accentColor, 'red'),
+      homeWelcomeLine: publicBranding.homeWelcomeLine || '',
+      homeIntroText: publicBranding.homeIntroText || '',
+      theme: DEFAULT_THEME_ID,
+      colorScheme: viewerPrefs.colorScheme ?? getDevicePreferredColorScheme(),
+      accentColor: normalizeAccentColor(publicBranding.accentColor, 'red'),
       clockStyle: publicBranding.clockStyle === 'analog' ? 'analog' : 'digital',
       clockColor: publicBranding.clockColor === 'black' ? 'black' : 'white',
       weekStartDay: publicBranding.weekStartDay || 'sunday',
@@ -2255,7 +2384,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const pendingLoadingParts = useMemo<string[]>(() => {
     if (!currentUser) return [];
     if (isViewer) {
-      if (!viewerUnlocked) return [];
       const checks: Array<[boolean | undefined, string]> = [
         [loadedCollections.nodes, 'outline_nodes'],
         [loadedCollections.people, 'people_public'],
@@ -2264,6 +2392,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         [loadedCollections.events, 'events'],
         [loadedCollections.assignments, 'assignments'],
         [loadedCollections.schedules, 'schedules'],
+        [loadedCollections.announcements, 'announcements'],
         [publicBannerLoaded, 'public_branding/banner'],
       ];
       return checks.filter(([ok]) => !ok).map(([, name]) => name);
@@ -2278,6 +2407,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       [loadedCollections.events, 'events'],
       [loadedCollections.assignments, 'assignments'],
       [loadedCollections.schedules, 'schedules'],
+      [loadedCollections.announcements, 'announcements'],
       [loadedCollections.tasks, 'tasks'],
       [loadedCollections.notes, 'notes'],
       [loadedCollections.messageTemplates, 'message_templates'],
@@ -2286,7 +2416,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       [loadedCollections.forerunnerBulletins, 'forerunner_bulletins'],
     ];
     return secChecks.filter(([ok]) => !ok).map(([, name]) => name);
-  }, [currentUser, isViewer, viewerUnlocked, loadedCollections, publicBannerLoaded]);
+  }, [currentUser, isViewer, loadedCollections, publicBannerLoaded]);
 
   const value: DataContextType = {
     settings: effectiveSettings,
@@ -2587,6 +2717,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateViewerNoteStatus,
     deleteViewerNote,
 
+    announcements,
+    addAnnouncement,
+    updateAnnouncement,
+    deleteAnnouncement,
+
     isBusyOperation,
     beginBusyOperation,
     endBusyOperation,
@@ -2594,21 +2729,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     dataLoading: {
       settings: isSecretary ? !loadedCollections.settings : !publicBannerLoaded,
-      initial: !currentUser
+      initial: !currentUser || (isViewer && !viewerUnlocked)
         ? false
         : isViewer
-          ? (viewerUnlocked
-              ? !(
-                  loadedCollections.nodes &&
-                  loadedCollections.people &&
-                  loadedCollections.regularServices &&
-                  loadedCollections.overrides &&
-                  loadedCollections.events &&
-                  loadedCollections.assignments &&
-                  loadedCollections.schedules &&
-                  publicBannerLoaded
-                )
-              : false)
+          ? !(
+              loadedCollections.nodes &&
+              loadedCollections.people &&
+              loadedCollections.regularServices &&
+              loadedCollections.overrides &&
+              loadedCollections.events &&
+              loadedCollections.assignments &&
+              loadedCollections.schedules &&
+              loadedCollections.announcements &&
+              publicBannerLoaded
+            )
           : !(
               loadedCollections.settings &&
               loadedCollections.viewerSettings &&
@@ -2619,6 +2753,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
               loadedCollections.events &&
               loadedCollections.assignments &&
               loadedCollections.schedules &&
+              loadedCollections.announcements &&
               loadedCollections.tasks &&
               loadedCollections.notes &&
               loadedCollections.messageTemplates &&
@@ -2633,7 +2768,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             loadedCollections.overrides &&
             loadedCollections.assignments &&
             loadedCollections.nodes &&
-            loadedCollections.people
+            loadedCollections.people &&
+            loadedCollections.announcements
           )
         : !(
             loadedCollections.regularServices &&
@@ -2705,6 +2841,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loadedCollections.forerunnerAsset
       ),
       viewerNotes: !loadedCollections.viewerNotes,
+      announcements: !loadedCollections.announcements,
     },
     pendingLoadingParts,
     collectionErrors,

@@ -689,6 +689,21 @@
         "status": { "type": "string", "enum": ["new", "done"] }
       },
       "required": ["message", "createdAt", "status"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Church announcements posted by the Secretary and displayed on Viewer Home",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "pinned": { "type": "boolean" },
+        "showUntil": { "type": "string", "description": "Optional YYYY-MM-DD local date string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "message", "pinned", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -711,6 +726,10 @@
     "/viewer_notes/{noteId}": {
       "schema": "ViewerNote",
       "description": "Notes submitted by viewers"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Church announcements readable by unlocked viewers and managed by the Secretary"
     },
     "/schedules/{scheduleId}": {
       "schema": "Schedule",

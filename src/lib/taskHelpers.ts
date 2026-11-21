@@ -12,7 +12,7 @@ import {
   ServiceOverride,
   TaskLink
 } from '../types';
-import { toDateString, formatTime } from './dateTime';
+import { toDateString, formatTime, doesRegularServiceOccurOnDate } from './dateTime';
 
 /**
  * Calculates the dynamic due date for a task linked to an event or service occurrence.
@@ -225,7 +225,6 @@ export function expandTaskOccurrences(
       // Every occurrence of regular service
       const targetService = regularServices.find(s => s.id === repeat.serviceId);
       if (targetService && targetService.daysOfWeek && targetService.daysOfWeek.length > 0) {
-        const daysSet = new Set(targetService.daysOfWeek);
         const daysBefore = repeat.daysBefore || 0;
 
         // Scan dates where service would occur
@@ -237,7 +236,7 @@ export function expandTaskOccurrences(
         const cur = new Date(scanStart);
         while (cur <= scanEnd) {
           const curStr = toDateString(cur);
-          if (daysSet.has(cur.getDay())) {
+          if (doesRegularServiceOccurOnDate(targetService, cur)) {
             // Check cancellation override
             const override = overrides.find(o => o.serviceId === targetService.id && o.date === curStr);
             if (!override?.isCancelled) {

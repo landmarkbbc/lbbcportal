@@ -8,7 +8,6 @@ import { AlertTriangle, RotateCw, X } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
 import { Header } from './components/Header';
-import { LoginScreen } from './components/LoginScreen';
 import { HomePage } from './pages/HomePage';
 import { CalendarPage } from './pages/CalendarPage';
 import { RegularServicesPage } from './pages/RegularServicesPage';
@@ -22,6 +21,8 @@ import { ForerunnerStudioPage } from './pages/ForerunnerStudioPage';
 import { VisitorsPage } from './pages/VisitorsPage';
 import { ViewerNotesPage } from './pages/ViewerNotesPage';
 import { PrayerWallPage } from './pages/PrayerWallPage';
+import { LessonsPage } from './pages/LessonsPage';
+import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { VisitorFollowUpStatus } from './types';
 import { SaveStatusPill } from './components/SaveStatusPill';
 import { FloatingQuickNoteButton } from './components/FloatingQuickNoteButton';
@@ -33,18 +34,25 @@ import { ViewerWelcomeOverlay } from './components/ViewerWelcomeOverlay';
 import { DocumentTitleSync } from './components/DocumentTitleSync';
 import { BackToTop } from './components/BackToTop';
 import { ScrollToTop } from './components/ScrollToTop';
+import { ViewerBottomNav } from './components/ViewerBottomNav';
+import { ViewerFooterAndLogin } from './components/ViewerFooterAndLogin';
+import { ViewerSwipeContainer } from './components/ViewerSwipeContainer';
+import { ViewerPasscodeScreen } from './components/ViewerPasscodeScreen';
+import { SecretSecretaryLoginController } from './components/SecretSecretaryLoginController';
 
 const VIEWER_ALLOWED_TABS = new Set([
   'home',
   'calendar',
   'schedules',
-  'people-ministries',
+  'ministries',
+  'lessons',
   'prayer-wall',
 ]);
 
 function resolveViewerTab(tab: string | null): string | null {
   if (!tab) return null;
   if (tab === 'regular-services') return 'schedules';
+  if (tab === 'people-ministries' || tab === 'members') return null;
   return VIEWER_ALLOWED_TABS.has(tab) ? tab : null;
 }
 
@@ -54,6 +62,9 @@ const KNOWN_APP_ROUTES = new Set([
   'regular-services',
   'schedules',
   'people-ministries',
+  'ministries',
+  'members',
+  'lessons',
   'prayer-wall',
   'settings',
   'message-templates',
@@ -63,6 +74,7 @@ const KNOWN_APP_ROUTES = new Set([
   'forerunner-studio',
   'sunday-school',
   'visitors',
+  'announcements',
 ]);
 
 function getPreservedBasePathname(): string {
@@ -83,9 +95,10 @@ function getPreservedBasePathname(): string {
   return pathname.endsWith('/') ? pathname : `${pathname}/`;
 }
 
-function buildAppUrl(tab?: 'schedules'): string {
+function buildAppUrl(tab?: string): string {
   const basePath = getPreservedBasePathname();
-  return tab === 'schedules' ? `${basePath}#/schedules` : basePath;
+  if (!tab || tab === 'home') return `${basePath}#/`;
+  return `${basePath}#/${tab}`;
 }
 
 function readRequestedTabFromUrl(): string | null {
@@ -113,13 +126,12 @@ function AppContent() {
     loading,
     role,
     isViewer,
+    isSecretaryAccount,
     publicBranding,
     publicBrandingLoading,
     publicBrandingError,
     viewerUnlocked,
     viewerUnlockChecking,
-    viewerPasscodeSubmitting,
-    viewerUnlockError,
     viewerWelcomePending,
     dismissViewerWelcome,
     recheckAuth,
@@ -143,43 +155,34 @@ function AppContent() {
 
   const handleNavigate = useCallback((tab: string) => {
     if (isViewer) {
-      if (tab === 'regular-services') {
-        setCurrentTab('schedules');
-        if (typeof window !== 'undefined') {
-          const targetUrl = buildAppUrl('schedules');
-          const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-          if (currentUrl !== targetUrl) {
-            window.history.replaceState(null, '', targetUrl);
-          }
+      const targetTab = resolveViewerTab(tab) || 'home';
+      setCurrentTab(targetTab);
+      if (typeof window !== 'undefined') {
+        const targetUrl = buildAppUrl(targetTab);
+        const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        if (currentUrl !== targetUrl) {
+          window.history.pushState(null, '', targetUrl);
         }
-        return;
       }
-      if (!VIEWER_ALLOWED_TABS.has(tab)) {
-        setCurrentTab('home');
-        if (typeof window !== 'undefined') {
-          const targetUrl = buildAppUrl();
-          const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-          if (currentUrl !== targetUrl) {
-            window.history.replaceState(null, '', targetUrl);
-          }
-        }
-        return;
-      }
+      return;
     }
     setCurrentTab(tab);
   }, [isViewer]);
 
-  // Land on Home whenever role changes, and keep Viewers strictly on allowed tabs (including direct URL/hash/query)
+  // Sync tab on role change while honoring Viewer hash URLs on direct open/refresh
   useEffect(() => {
-    setCurrentTab('home');
     setViewerNoteModalOpen(false);
-    if (role === 'viewer' && typeof window !== 'undefined') {
-      const urlTab = readRequestedTabFromUrl();
-      if (urlTab && !resolveViewerTab(urlTab)) {
-        window.history.replaceState(null, '', buildAppUrl());
-      }
+    if (!isViewer) {
+      setCurrentTab('home');
+      return;
     }
-  }, [role]);
+    const urlTab = readRequestedTabFromUrl();
+    const resolved = resolveViewerTab(urlTab);
+    setCurrentTab(resolved || 'home');
+    if (urlTab && !resolved && urlTab !== 'secretary-login' && typeof window !== 'undefined') {
+      window.history.replaceState(null, '', buildAppUrl('home'));
+    }
+  }, [role, isViewer]);
 
   useEffect(() => {
     if (!isViewer) return;
@@ -195,8 +198,12 @@ function AppContent() {
           }
         } else {
           setCurrentTab('home');
-          window.history.replaceState(null, '', buildAppUrl());
+          if (urlTab !== 'secretary-login') {
+            window.history.replaceState(null, '', buildAppUrl('home'));
+          }
         }
+      } else {
+        setCurrentTab('home');
       }
     };
 
@@ -214,7 +221,7 @@ function AppContent() {
       const fallback = currentTab === 'regular-services' ? 'schedules' : 'home';
       setCurrentTab(fallback);
       if (typeof window !== 'undefined') {
-        const targetUrl = buildAppUrl(fallback === 'schedules' ? 'schedules' : undefined);
+        const targetUrl = buildAppUrl(fallback);
         const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
         if (currentUrl !== targetUrl) {
           window.history.replaceState(null, '', targetUrl);
@@ -223,10 +230,18 @@ function AppContent() {
     }
   }, [isViewer, currentTab]);
 
+  const checkingPasscodeUnlock = Boolean(
+    isViewer &&
+    !isSecretaryAccount &&
+    !publicBrandingLoading &&
+    publicBranding.viewerMode === 'passcode' &&
+    viewerUnlockChecking
+  );
+
   const isAppLoading =
     loading ||
     publicBrandingLoading ||
-    (isViewer && !viewerUnlocked && viewerUnlockChecking && !viewerPasscodeSubmitting) ||
+    checkingPasscodeUnlock ||
     (Boolean(currentUser) && (!isViewer || viewerUnlocked) && dataLoading.initial);
 
   useEffect(() => {
@@ -247,9 +262,8 @@ function AppContent() {
   const diagnosticParts: string[] = [];
   if (loading) diagnosticParts.push('auth session');
   if (publicBrandingLoading) diagnosticParts.push('public_branding/app');
+  if (checkingPasscodeUnlock) diagnosticParts.push('viewer unlock status');
   if (publicBrandingError) diagnosticParts.push(`public_branding/app (${publicBrandingError})`);
-  if (isViewer && !viewerUnlocked && viewerUnlockChecking) diagnosticParts.push('viewer_unlocks');
-  if (viewerUnlockError) diagnosticParts.push(`viewer_unlocks (${viewerUnlockError})`);
   if (pendingLoadingParts.length > 0) {
     diagnosticParts.push(`waiting: ${pendingLoadingParts.join(', ')}`);
   }
@@ -278,8 +292,6 @@ function AppContent() {
 
   const showViewerWelcome = Boolean(
     isViewer &&
-    currentUser &&
-    viewerUnlocked &&
     viewerWelcomePending &&
     !loadingTimedOut
   );
@@ -295,7 +307,7 @@ function AppContent() {
             <div className="space-y-1.5">
               <h2 className="text-lg font-bold text-main">Taking longer than expected</h2>
               <p className="text-sm text-sec leading-relaxed">
-                We couldn&apos;t finish loading the church data right away. You can try again or return to the login screen.
+                We couldn&apos;t finish loading the church data right away. You can try again or reset your session.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
@@ -313,7 +325,7 @@ function AppContent() {
                 onClick={handleBackToLogin}
                 className="flex-1 py-2.5 px-4 rounded-xl border border-subtle bg-canvas hover:bg-surface text-main font-semibold text-sm transition-colors cursor-pointer"
               >
-                Back to login
+                Reset session
               </button>
             </div>
             <p className="text-[11px] text-mut leading-relaxed break-words pt-1">
@@ -329,8 +341,13 @@ function AppContent() {
     return <PageLoading fullScreen label="Loading..." />;
   }
 
-  if (!currentUser || (isViewer && !viewerUnlocked)) {
-    return <LoginScreen />;
+  if (isViewer && !viewerUnlocked) {
+    return (
+      <>
+        <ViewerPasscodeScreen />
+        <SecretSecretaryLoginController />
+      </>
+    );
   }
 
   const effectiveTab = isViewer && !VIEWER_ALLOWED_TABS.has(currentTab)
@@ -399,42 +416,58 @@ function AppContent() {
             </div>
           )}
 
-          <main className="flex-1 pb-16">
-            {effectiveTab === 'home' && (
-              <HomePage
-                onNavigate={handleNavigate}
-                onOpenVisitorsToFollowUp={() => {
-                  if (isViewer) return;
-                  setVisitorInitialFollowUp('To follow up');
-                  setCurrentTab('visitors');
-                }}
-              />
-            )}
-            {effectiveTab === 'calendar' && <CalendarPage />}
-            {!isViewer && effectiveTab === 'regular-services' && <RegularServicesPage />}
-            {effectiveTab === 'schedules' && <SchedulesPage onNavigate={handleNavigate} />}
-            {effectiveTab === 'people-ministries' && <PeopleMinistriesPage />}
-            {isViewer && effectiveTab === 'prayer-wall' && <PrayerWallPage />}
-
-            {!isViewer && (
-              <>
-                {effectiveTab === 'settings' && <SettingsPage />}
-                {effectiveTab === 'message-templates' && <MessageTemplatesPage onNavigate={handleNavigate} />}
-                {effectiveTab === 'tasks' && <TasksPage />}
-                {effectiveTab === 'quick-notes' && <QuickNotesPage onNavigate={handleNavigate} />}
-                {effectiveTab === 'viewer-notes' && <ViewerNotesPage />}
-                {(effectiveTab === 'forerunner-studio' || effectiveTab === 'sunday-school') && (
-                  <ForerunnerStudioPage onNavigate={handleNavigate} />
-                )}
-                {effectiveTab === 'visitors' && (
-                  <VisitorsPage
-                    initialFollowUpFilter={visitorInitialFollowUp}
-                    onConsumeInitialFilter={() => setVisitorInitialFollowUp(undefined)}
+          {isViewer ? (
+            <ViewerSwipeContainer
+              currentTab={effectiveTab}
+              onNavigate={handleNavigate}
+              disabled={viewerNoteModalOpen || isAppLoading || showViewerWelcome}
+            >
+              <main className="flex-1 pb-6 md:pb-12">
+                {effectiveTab === 'home' && (
+                  <HomePage
+                    onNavigate={handleNavigate}
+                    onOpenVisitorsToFollowUp={() => {}}
                   />
                 )}
-              </>
-            )}
-          </main>
+                {effectiveTab === 'calendar' && <CalendarPage />}
+                {effectiveTab === 'schedules' && <SchedulesPage onNavigate={handleNavigate} />}
+                {effectiveTab === 'ministries' && <PeopleMinistriesPage />}
+                {effectiveTab === 'lessons' && <LessonsPage />}
+                {effectiveTab === 'prayer-wall' && <PrayerWallPage />}
+              </main>
+            </ViewerSwipeContainer>
+          ) : (
+            <main className="flex-1 pb-16">
+              {effectiveTab === 'home' && (
+                <HomePage
+                  onNavigate={handleNavigate}
+                  onOpenVisitorsToFollowUp={() => {
+                    setVisitorInitialFollowUp('To follow up');
+                    setCurrentTab('visitors');
+                  }}
+                />
+              )}
+              {effectiveTab === 'calendar' && <CalendarPage />}
+              {effectiveTab === 'regular-services' && <RegularServicesPage />}
+              {effectiveTab === 'schedules' && <SchedulesPage onNavigate={handleNavigate} />}
+              {effectiveTab === 'announcements' && <AnnouncementsPage />}
+              {effectiveTab === 'people-ministries' && <PeopleMinistriesPage />}
+              {effectiveTab === 'settings' && <SettingsPage />}
+              {effectiveTab === 'message-templates' && <MessageTemplatesPage onNavigate={handleNavigate} />}
+              {effectiveTab === 'tasks' && <TasksPage />}
+              {effectiveTab === 'quick-notes' && <QuickNotesPage onNavigate={handleNavigate} />}
+              {effectiveTab === 'viewer-notes' && <ViewerNotesPage />}
+              {(effectiveTab === 'forerunner-studio' || effectiveTab === 'sunday-school') && (
+                <ForerunnerStudioPage onNavigate={handleNavigate} />
+              )}
+              {effectiveTab === 'visitors' && (
+                <VisitorsPage
+                  initialFollowUpFilter={visitorInitialFollowUp}
+                  onConsumeInitialFilter={() => setVisitorInitialFollowUp(undefined)}
+                />
+              )}
+            </main>
+          )}
         </>
       )}
 
@@ -446,6 +479,11 @@ function AppContent() {
       {/* Floating Note to Secretary button on phones for Viewers */}
       {isViewer && !isAppLoading && (
         <FloatingViewerNoteButton onClick={() => setViewerNoteModalOpen(true)} />
+      )}
+
+      {/* Mobile bottom navigation bar for Viewers */}
+      {isViewer && !isAppLoading && (
+        <ViewerBottomNav currentTab={effectiveTab} onNavigate={handleNavigate} />
       )}
 
       {/* Viewer Note to Secretary modal */}
@@ -466,20 +504,27 @@ function AppContent() {
       <BackToTop hidden={isAppLoading || showViewerWelcome} />
 
       {/* Quiet, calm church footer */}
-      <footer className="border-t border-subtle bg-surface py-6 text-xs text-mut viewer-scroll-section">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-main">{settings.churchName || publicBranding.churchName || 'Our Church'}</span>
-            <span>·</span>
-            <span>{isViewer ? 'Church Viewer' : 'Secretary Companion'}</span>
+      {isViewer ? (
+        <ViewerFooterAndLogin onNavigate={handleNavigate} />
+      ) : (
+        <footer className="border-t border-subtle bg-surface text-xs text-mut viewer-scroll-section py-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-main">{settings.churchName || publicBranding.churchName || 'Our Church'}</span>
+              <span>·</span>
+              <span>Secretary Companion</span>
+            </div>
+            <div className="flex items-center gap-4 text-sec">
+              <span>Local Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
+              <span>·</span>
+              <span>All Data Encrypted & Authenticated</span>
+            </div>
           </div>
-          <div className="flex items-center gap-4 text-sec">
-            <span>Local Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
-            <span>·</span>
-            <span>All Data Encrypted & Authenticated</span>
-          </div>
-        </div>
-      </footer>
+        </footer>
+      )}
+
+      {/* Hidden #/secretary-login route modal trigger */}
+      {isViewer && <SecretSecretaryLoginController />}
 
       {/* Global Bottom-Center Save Status Pill */}
       {!isViewer && <SaveStatusPill />}

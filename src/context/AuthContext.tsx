@@ -27,6 +27,8 @@ import { DEFAULT_COLOR_SCHEME, DEFAULT_THEME_ID, normalizeAppearance } from '../
 export const DEFAULT_PUBLIC_BRANDING: PublicBranding = {
   churchName: 'Our Church',
   churchLogo: '',
+  homeWelcomeLine: '',
+  homeIntroText: '',
   accentColor: 'red',
   theme: DEFAULT_THEME_ID,
   colorScheme: DEFAULT_COLOR_SCHEME,
@@ -51,6 +53,7 @@ interface AuthContextType {
   currentUser: User | null;
   role: UserRole;
   isSecretary: boolean;
+  isSecretaryAccount: boolean;
   isViewer: boolean;
   username: string;
   loading: boolean;
@@ -67,6 +70,7 @@ interface AuthContextType {
   anonymousAuthDisabled: boolean;
   viewerWelcomePending: boolean;
   dismissViewerWelcome: () => void;
+  enterSecretaryWorkspace: () => void;
   login: (username: string, password: string) => Promise<void>;
   createInitialAccount: (username: string, password: string) => Promise<void>;
   enterViewerOpen: () => Promise<void>;
@@ -76,6 +80,40 @@ interface AuthContextType {
   changePassword: (newPassword: string) => Promise<void>;
   authError: string | null;
   clearAuthError: () => void;
+}
+
+const SESSION_WORKSPACE_KEY = 'lbbc_secretary_workspace';
+const SESSION_WELCOME_KEY = 'lbbc_viewer_welcome_shown';
+
+function readSessionFlag(key: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.sessionStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeSessionFlag(key: string, value: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (value) {
+      window.sessionStorage.setItem(key, '1');
+    } else {
+      window.sessionStorage.removeItem(key);
+    }
+  } catch {
+    // Ignore storage errors cleanly
+  }
+}
+
+function prefersReducedMotionEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  } catch {
+    return false;
+  }
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -118,17 +156,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const [viewerUnlockRecord, setViewerUnlockRecord] = useState<ViewerUnlockRecord | null>(null);
-  const [viewerUnlockChecking, setViewerUnlockChecking] = useState(false);
+  const [viewerUnlockChecking, setViewerUnlockChecking] = useState(true);
   const [viewerPasscodeSubmitting, setViewerPasscodeSubmitting] = useState(false);
   const [viewerUnlockError, setViewerUnlockError] = useState<string | null>(null);
   const [viewerWelcomePending, setViewerWelcomePending] = useState(false);
+  const [secretaryWorkspaceActive, setSecretaryWorkspaceActive] = useState<boolean>(() =>
+    readSessionFlag(SESSION_WORKSPACE_KEY)
+  );
   const [authEpoch, setAuthEpoch] = useState(0);
 
   const authEventSeqRef = useRef(0);
-  const viewerWelcomeShownRef = useRef(false);
+  const anonSignInInFlightRef = useRef<Promise<User> | null>(null);
+  const secretaryWorkspaceActiveRef = useRef(secretaryWorkspaceActive);
+  secretaryWorkspaceActiveRef.current = secretaryWorkspaceActive;
 
-  const isSecretary = role === 'secretary';
-  const isViewer = role === 'viewer';
+  const isSecretaryAccount = Boolean(currentUser && !currentUser.isAnonymous);
+  const isSecretary = Boolean(isSecretaryAccount && secretaryWorkspaceActive);
+  const isViewer = !isSecretary;
 
   const applyBrandingSnapshot = useCallback((exists: boolean, rawData?: Partial<PublicBranding>) => {
     if (exists && rawData) {
@@ -144,6 +188,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...rawData,
         churchName: safeChurchName,
         churchLogo: safeChurchLogo,
+        homeWelcomeLine: typeof rawData.homeWelcomeLine === 'string' ? rawData.homeWelcomeLine : '',
+        homeIntroText: typeof rawData.homeIntroText === 'string' ? rawData.homeIntroText : '',
         accentColor: safeAccentColor,
         theme: normalizedAppearance.theme,
         colorScheme: normalizedAppearance.colorScheme,
@@ -204,21 +250,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       const seq = ++authEventSeqRef.current;
-      if (user) {
+
+      if (!user) {
         try {
-          await user.getIdToken();
-        } catch (err) {
-          console.warn('ID token readiness check:', err);
+          if (!anonSignInInFlightRef.current) {
+            anonSignInInFlightRef.current = signInAnonymously(auth)
+              .then(async (cred) => {
+                try {
+                  await cred.user.getIdToken(true);
+                } catch {
+                  // Proceed cleanly
+                }
+                setAnonymousAuthDisabled(false);
+                return cred.user;
+              })
+              .finally(() => {
+                anonSignInInFlightRef.current = null;
+              });
+          }
+          const anonUser = await anonSignInInFlightRef.current;
+          if (authEventSeqRef.current !== seq) return;
+          setRole('viewer');
+          setCurrentUser(anonUser);
+          setViewerUnlockChecking(true);
+          setLoading(false);
+        } catch (err: any) {
+          if (authEventSeqRef.current !== seq) return;
+          const code = err?.code || '';
+          if (code === 'auth/admin-only-operation' || code === 'auth/operation-not-allowed') {
+            setAnonymousAuthDisabled(true);
+          }
+          console.warn('Silent anonymous sign-in fallback:', err);
+          setRole('viewer');
+          setCurrentUser(null);
+          setViewerUnlockChecking(false);
+          setLoading(false);
         }
+        return;
+      }
+
+      try {
+        await user.getIdToken();
+      } catch (err) {
+        console.warn('ID token readiness check:', err);
       }
       if (authEventSeqRef.current !== seq) return;
 
       const resolved = resolveUserRole(user);
       setViewerUnlockRecord(null);
       setViewerUnlockError(null);
-      if (!user || !user.isAnonymous) {
-        setViewerUnlockChecking(false);
+      setViewerUnlockChecking(Boolean(user.isAnonymous));
+
+      const enteringSecretaryWorkspace = Boolean(!user.isAnonymous && secretaryWorkspaceActiveRef.current);
+      if (enteringSecretaryWorkspace) {
+        setViewerWelcomePending(false);
       }
+
       setRole(resolved);
       setCurrentUser(user);
       setLoading(false);
@@ -231,64 +318,106 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [applyBrandingSnapshot, authEpoch]);
 
-  // Track viewer unlock record only when signed in as anonymous viewer AND passcode mode is active
   useEffect(() => {
     if (!currentUser || !currentUser.isAnonymous || publicBranding.viewerMode === 'open') {
       setViewerUnlockRecord(null);
-      setViewerUnlockChecking(false);
       setViewerUnlockError(null);
+      setViewerUnlockChecking(false);
       return;
     }
 
+    let active = true;
     setViewerUnlockChecking(true);
-    setViewerUnlockError(null);
     const unlockRef = doc(db, 'viewer_unlocks', currentUser.uid);
-    const unsubUnlock = onSnapshot(unlockRef, (snap) => {
-      // Wait for server-confirmed state rather than local optimistic pending writes
-      if (snap.metadata.hasPendingWrites) {
-        return;
-      }
-      if (snap.exists()) {
-        setViewerUnlockRecord(snap.data() as ViewerUnlockRecord);
-      } else {
+    const unsubUnlock = onSnapshot(
+      unlockRef,
+      (snap) => {
+        if (!active) return;
+        setViewerUnlockRecord(snap.exists() ? (snap.data() as ViewerUnlockRecord) : null);
+        setViewerUnlockError(null);
+        setViewerUnlockChecking(false);
+      },
+      (err: any) => {
+        if (!active) return;
+        console.warn('Viewer unlock snapshot check:', err);
         setViewerUnlockRecord(null);
+        setViewerUnlockError(err?.code || err?.message || 'Unable to verify device unlock');
+        setViewerUnlockChecking(false);
       }
-      setViewerUnlockError(null);
-      setViewerUnlockChecking(false);
-    }, (err: any) => {
-      console.warn('Viewer unlock check:', err);
-      setViewerUnlockRecord(null);
-      setViewerUnlockError(err?.code || err?.message || 'Unable to read viewer_unlocks');
-      setViewerUnlockChecking(false);
-    });
+    );
 
-    return () => unsubUnlock();
-  }, [currentUser?.uid, currentUser?.isAnonymous, publicBranding.viewerMode, authEpoch]);
+    return () => {
+      active = false;
+      unsubUnlock();
+    };
+  }, [currentUser, publicBranding.viewerMode, authEpoch]);
 
   const viewerUnlocked = useMemo(() => {
-    if (!isViewer) return false;
-    if (publicBranding.viewerMode === 'open') {
-      return true;
-    }
-    if (!publicBranding.viewerPasscodeConfigured) {
-      return false;
-    }
-    return !!(
-      viewerUnlockRecord &&
-      typeof viewerUnlockRecord.passcodeVersion === 'number' &&
-      viewerUnlockRecord.passcodeVersion === publicBranding.viewerPasscodeVersion
+    if (isSecretaryAccount || !isViewer) return true;
+    if (publicBrandingLoading) return false;
+    if (publicBranding.viewerMode === 'open') return true;
+    if (!currentUser || !currentUser.isAnonymous) return false;
+    if (!publicBranding.viewerPasscodeConfigured) return false;
+    if (!viewerUnlockRecord) return false;
+    const expectedVersion = publicBranding.viewerPasscodeVersion || 1;
+    const recordVersion = typeof viewerUnlockRecord.passcodeVersion === 'number'
+      ? viewerUnlockRecord.passcodeVersion
+      : 1;
+    return (
+      recordVersion === expectedVersion &&
+      /^\d{6}$/.test(viewerUnlockRecord.code || '')
     );
-  }, [isViewer, publicBranding.viewerMode, publicBranding.viewerPasscodeConfigured, publicBranding.viewerPasscodeVersion, viewerUnlockRecord]);
+  }, [
+    isSecretaryAccount,
+    isViewer,
+    publicBrandingLoading,
+    publicBranding.viewerMode,
+    publicBranding.viewerPasscodeConfigured,
+    publicBranding.viewerPasscodeVersion,
+    currentUser,
+    viewerUnlockRecord,
+  ]);
+
+  useEffect(() => {
+    if (loading || publicBrandingLoading) return;
+    if (isSecretary || isSecretaryAccount) {
+      setViewerWelcomePending(false);
+      return;
+    }
+    if (publicBranding.viewerMode === 'passcode' && viewerUnlockChecking) return;
+    if (!isViewer || !viewerUnlocked) return;
+    if (!readSessionFlag(SESSION_WELCOME_KEY) && !prefersReducedMotionEnabled()) {
+      writeSessionFlag(SESSION_WELCOME_KEY, true);
+      setViewerWelcomePending(true);
+    }
+  }, [
+    loading,
+    publicBrandingLoading,
+    publicBranding.viewerMode,
+    viewerUnlockChecking,
+    isSecretary,
+    isSecretaryAccount,
+    isViewer,
+    viewerUnlocked,
+  ]);
 
   const isInitialSetup = useMemo(() => {
     return publicBrandingExists && publicBranding.initialAccountCreated === false;
   }, [publicBrandingExists, publicBranding.initialAccountCreated]);
 
   const dismissViewerWelcome = useCallback(() => {
+    writeSessionFlag(SESSION_WELCOME_KEY, true);
     setViewerWelcomePending(false);
   }, []);
 
-  const clearAuthError = () => setAuthError(null);
+  const enterSecretaryWorkspace = useCallback(() => {
+    if (!auth.currentUser || auth.currentUser.isAnonymous) return;
+    writeSessionFlag(SESSION_WORKSPACE_KEY, true);
+    setSecretaryWorkspaceActive(true);
+    setViewerWelcomePending(false);
+  }, []);
+
+  const clearAuthError = useCallback(() => setAuthError(null), []);
 
   const login = async (u: string, p: string) => {
     setAuthError(null);
@@ -299,7 +428,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const cred = await signInWithEmailAndPassword(auth, email, p);
       await cred.user.getIdToken(true);
-      viewerWelcomeShownRef.current = false;
+      writeSessionFlag(SESSION_WORKSPACE_KEY, true);
+      setSecretaryWorkspaceActive(true);
       setViewerWelcomePending(false);
       setRole(resolveUserRole(cred.user));
       setCurrentUser(cred.user);
@@ -331,7 +461,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, p);
       await cred.user.getIdToken(true);
-      viewerWelcomeShownRef.current = false;
+      writeSessionFlag(SESSION_WORKSPACE_KEY, true);
+      setSecretaryWorkspaceActive(true);
       setViewerWelcomePending(false);
       setRole(resolveUserRole(cred.user));
       setCurrentUser(cred.user);
@@ -382,11 +513,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return auth.currentUser;
     }
+    if (anonSignInInFlightRef.current) {
+      return anonSignInInFlightRef.current;
+    }
     try {
-      const cred = await signInAnonymously(auth);
-      await cred.user.getIdToken(true);
-      setAnonymousAuthDisabled(false);
-      return cred.user;
+      anonSignInInFlightRef.current = signInAnonymously(auth)
+        .then(async (cred) => {
+          await cred.user.getIdToken(true);
+          setAnonymousAuthDisabled(false);
+          return cred.user;
+        })
+        .finally(() => {
+          anonSignInInFlightRef.current = null;
+        });
+      return await anonSignInInFlightRef.current;
     } catch (err: any) {
       const code = err?.code || '';
       if (code === 'auth/admin-only-operation' || code === 'auth/operation-not-allowed') {
@@ -399,14 +539,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const enterViewerOpen = async () => {
     setAuthError(null);
-    if (publicBranding.viewerMode !== 'open') {
-      throw new Error('Open viewer access is not currently enabled.');
-    }
-    const shouldShowWelcome = !viewerWelcomeShownRef.current;
-    if (shouldShowWelcome) {
-      viewerWelcomeShownRef.current = true;
-      setViewerWelcomePending(true);
-    }
     try {
       const user = await ensureAnonymousSignIn();
       setRole('viewer');
@@ -414,10 +546,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setViewerUnlockChecking(false);
       setLoading(false);
     } catch (err) {
-      if (shouldShowWelcome) {
-        viewerWelcomeShownRef.current = false;
-        setViewerWelcomePending(false);
-      }
       throw err;
     }
   };
@@ -430,12 +558,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     if (!publicBranding.viewerPasscodeConfigured) {
       throw new Error('A viewer passcode has not been set yet. Please contact the church secretary.');
-    }
-
-    const shouldShowWelcome = !viewerWelcomeShownRef.current;
-    if (shouldShowWelcome) {
-      viewerWelcomeShownRef.current = true;
-      setViewerWelcomePending(true);
     }
 
     setViewerPasscodeSubmitting(true);
@@ -458,19 +580,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error(err?.message || 'Unable to verify passcode.');
       }
 
-      // Server confirmed write succeeded; update role & unlock state synchronously
       setViewerUnlockRecord(unlockPayload);
       setViewerUnlockError(null);
       setViewerUnlockChecking(false);
       setRole('viewer');
       setCurrentUser(user);
       setLoading(false);
-    } catch (err) {
-      if (shouldShowWelcome) {
-        viewerWelcomeShownRef.current = false;
-        setViewerWelcomePending(false);
-      }
-      throw err;
     } finally {
       setViewerPasscodeSubmitting(false);
     }
@@ -479,7 +594,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       authEventSeqRef.current++;
-      viewerWelcomeShownRef.current = false;
+      writeSessionFlag(SESSION_WORKSPACE_KEY, false);
+      writeSessionFlag(SESSION_WELCOME_KEY, true);
+      setSecretaryWorkspaceActive(false);
       setViewerWelcomePending(false);
       setViewerPasscodeSubmitting(false);
       setViewerUnlockRecord(null);
@@ -487,9 +604,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setViewerUnlockError(null);
       setAuthError(null);
       setAnonymousAuthDisabled(false);
-      setRole(null);
-      setCurrentUser(null);
+
       await signOut(auth);
+
+      try {
+        const anonUser = await ensureAnonymousSignIn();
+        setViewerUnlockChecking(true);
+        setRole('viewer');
+        setCurrentUser(anonUser);
+      } catch {
+        setViewerUnlockChecking(false);
+        setRole('viewer');
+        setCurrentUser(null);
+      }
+      setLoading(false);
     } catch (err) {
       console.error('Logout error:', err);
     }
@@ -550,6 +678,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     currentUser,
     role,
     isSecretary,
+    isSecretaryAccount,
     isViewer,
     username: isViewer ? 'Viewer' : emailToUsername(currentUser?.email),
     loading,
@@ -566,6 +695,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     anonymousAuthDisabled,
     viewerWelcomePending,
     dismissViewerWelcome,
+    enterSecretaryWorkspace,
     login,
     createInitialAccount,
     enterViewerOpen,

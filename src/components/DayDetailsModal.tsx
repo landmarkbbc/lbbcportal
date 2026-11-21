@@ -12,11 +12,12 @@ import {
   CheckCircle2,
   Circle,
   Moon,
-  CheckSquare
+  CheckSquare,
+  Repeat
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatTime, toDateString } from '../lib/dateTime';
+import { formatDate, formatTime, toDateString, formatWeekPatternBadge } from '../lib/dateTime';
 import { CalendarOccurrence, Person, Task, TaskOccurrenceItem } from '../types';
 import { renderRoleIcon, isImportantRole } from '../lib/roleIcons';
 import { expandTaskOccurrences } from '../lib/taskHelpers';
@@ -388,6 +389,17 @@ export const DayDetailsModal: React.FC<DayDetailsModalProps> = ({
                                 {occ.location}
                               </span>
                             )}
+                            {occ.type === 'regular_service' && (() => {
+                              const srv = regularServices.find(s => s.id === occ.sourceId);
+                              const weekBadge = srv ? formatWeekPatternBadge(srv) : '';
+                              if (!weekBadge) return null;
+                              return (
+                                <span className="flex items-center gap-1 text-accent font-medium">
+                                  <Repeat className="w-3 h-3 shrink-0" />
+                                  <span>{weekBadge}</span>
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
 

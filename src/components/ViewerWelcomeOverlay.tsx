@@ -24,14 +24,13 @@ export const ViewerWelcomeOverlay: React.FC<ViewerWelcomeOverlayProps> = ({
       return false;
     }
   });
-  const durationMs = prefersReducedMotion ? 1000 : 2500;
+  const durationMs = 1500;
 
   const [timerReady, setTimerReady] = useState(false);
   const [userSkipped, setUserSkipped] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
 
-  const canSkipRef = useRef(false);
   const exitStartedRef = useRef(false);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
@@ -41,40 +40,42 @@ export const ViewerWelcomeOverlay: React.FC<ViewerWelcomeOverlayProps> = ({
     setLogoLoadFailed(false);
   }, [churchLogo]);
 
-  // Brief grace period before accepting tap/key skip so a login Enter press does not immediately dismiss
+  // Skip completely if visitor prefers reduced motion
   useEffect(() => {
-    const skipArmTimer = setTimeout(() => {
-      canSkipRef.current = true;
-    }, 180);
+    if (prefersReducedMotion) {
+      onDoneRef.current();
+    }
+  }, [prefersReducedMotion]);
 
+  useEffect(() => {
+    if (prefersReducedMotion) return;
     const holdTimer = setTimeout(() => {
       setTimerReady(true);
     }, durationMs);
 
     return () => {
-      clearTimeout(skipArmTimer);
       clearTimeout(holdTimer);
     };
-  }, [durationMs]);
+  }, [durationMs, prefersReducedMotion]);
 
-  // Allow any key press to skip
+  // Allow any non-repeat key press to skip
   useEffect(() => {
+    if (prefersReducedMotion) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!canSkipRef.current) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       setUserSkipped(true);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [prefersReducedMotion]);
 
   // Crossfade cleanly once duration completes (or user skips) AND initial Home data is ready
   useEffect(() => {
-    if (exitStartedRef.current) return;
+    if (prefersReducedMotion || exitStartedRef.current) return;
     if ((timerReady || userSkipped) && !isDataLoading) {
       exitStartedRef.current = true;
       setExiting(true);
-      const fadeDuration = prefersReducedMotion ? 180 : 450;
+      const fadeDuration = 400;
       const doneTimer = setTimeout(() => {
         onDoneRef.current();
       }, fadeDuration);
@@ -82,11 +83,14 @@ export const ViewerWelcomeOverlay: React.FC<ViewerWelcomeOverlayProps> = ({
     }
   }, [timerReady, userSkipped, isDataLoading, prefersReducedMotion]);
 
+  if (prefersReducedMotion) {
+    return null;
+  }
+
   const churchDisplayName = (typeof churchName === 'string' ? churchName.trim() : '') || 'Our Church';
   const safeLogo = typeof churchLogo === 'string' && churchLogo.trim() && !logoLoadFailed ? churchLogo : '';
 
   const handleTap = () => {
-    if (!canSkipRef.current) return;
     setUserSkipped(true);
   };
 

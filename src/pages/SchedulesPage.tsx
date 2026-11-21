@@ -26,7 +26,8 @@ import {
   parseDateString,
   formatDate,
   formatTime,
-  getRecurringDates,
+  doesRegularServiceOccurOnDate,
+  getServiceRecurringDates,
   doTimesOverlap,
   getMonthDateRange,
   getNextPeriodDateRange,
@@ -432,7 +433,7 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
       const slotCount = roleSpec ? roleSpec.count : 1;
 
       for (const ym of activeMonths) {
-        const dates = getRecurringDates(getMonthStartDate(ym), getMonthEndDate(ym), service.daysOfWeek);
+        const dates = getServiceRecurringDates(getMonthStartDate(ym), getMonthEndDate(ym), service);
 
         for (const d of dates) {
           const override = overrides.find(o => o.serviceId === service.id && o.date === d);
@@ -531,8 +532,7 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
         if (!matchingService) {
           trulyNoService = true;
         } else {
-          const dayOfWeek = parseDateString(orphan.date).getDay();
-          const runsOnDay = matchingService.daysOfWeek.includes(dayOfWeek);
+          const runsOnDay = doesRegularServiceOccurOnDate(matchingService, orphan.date);
           const isCancelled = !!overrides.find(o => o.serviceId === matchingService.id && o.date === orphan.date)?.isCancelled;
           trulyNoService = !runsOnDay || isCancelled;
         }
@@ -681,7 +681,7 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
       const slotCount = roleSpec ? roleSpec.count : 1;
 
       for (const ym of schedMonths) {
-        const dates = getRecurringDates(getMonthStartDate(ym), getMonthEndDate(ym), s.daysOfWeek);
+        const dates = getServiceRecurringDates(getMonthStartDate(ym), getMonthEndDate(ym), s);
         for (const d of dates) {
           const override = overrides.find(o => o.serviceId === s.id && o.date === d);
           if (override?.isCancelled) continue;
@@ -897,7 +897,7 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
 
     for (const service of regularServices) {
       if (!service.requiredRoles || service.requiredRoles.length === 0) continue;
-      const dates = getRecurringDates(todayStr, endStr, service.daysOfWeek);
+      const dates = getServiceRecurringDates(todayStr, endStr, service);
 
       for (const d of dates) {
         const override = overrides.find(o => o.serviceId === service.id && o.date === d);
@@ -927,7 +927,7 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
   }, [regularServices, assignments, overrides, todayStr]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 motion-page-enter">
+    <div className={`${isViewer ? 'max-w-[1100px]' : 'max-w-7xl'} mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 motion-page-enter`}>
       {/* =========================================================================
           SCHEDULES CARD GRID & GAPS TAB (Base Page)
          ========================================================================= */}
@@ -997,7 +997,7 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
         {activeTab === 'schedules' && (
           <div>
             {displaySchedules.length === 0 ? (
-              <div className="p-12 rounded-2xl bg-surface border border-subtle text-center space-y-4 shadow-card">
+              <div className={`p-12 bg-surface border border-subtle text-center space-y-4 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
                 <div className="w-14 h-14 rounded-2xl bg-accent-tint text-accent mx-auto flex items-center justify-center">
                   <Calendar className="w-7 h-7" />
                 </div>
@@ -1032,8 +1032,8 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
                   return (
                     <div
                       key={schedule.id}
-                      className={`rounded-2xl bg-surface border border-subtle shadow-card hover:shadow-md motion-card flex flex-col justify-between ${
-                        isViewer ? 'p-3.5 sm:p-4 space-y-2.5' : 'p-5 space-y-4'
+                      className={`bg-surface border border-subtle motion-card flex flex-col justify-between ${
+                        isViewer ? 'rounded-xl shadow-none p-4 sm:p-5 space-y-3' : 'rounded-2xl shadow-card hover:shadow-md p-5 space-y-4'
                       }`}
                     >
                       <div className={isViewer ? 'space-y-1.5' : 'space-y-3'}>
@@ -1166,8 +1166,8 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
                             setScheduleViewMode('list');
                             setActiveScheduleId(schedule.id);
                           }}
-                          className={`rounded-xl bg-accent hover:bg-accent-hover text-accent-contrast text-xs font-semibold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer ${
-                            isViewer ? 'px-3 py-1.5' : 'px-3.5 py-1.5'
+                          className={`bg-accent hover:bg-accent-hover text-accent-contrast text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                            isViewer ? 'rounded-lg px-4 py-2 min-h-[44px]' : 'rounded-xl shadow-xs px-3.5 py-1.5'
                           }`}
                         >
                           <span>{isViewer ? 'View Schedule' : 'Open / Edit'}</span>
@@ -1361,8 +1361,11 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => setActiveScheduleId(null)}
-                    className="p-1.5 rounded-lg text-sec hover:text-main hover:bg-subtle cursor-pointer transition-colors"
+                    className={`rounded-lg text-sec hover:text-main hover:bg-subtle cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                      isViewer ? 'min-w-[44px] min-h-[44px] inline-flex items-center justify-center' : 'p-1.5'
+                    }`}
                     title="Close Schedule Editor"
+                    aria-label="Close schedule"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -1467,7 +1470,9 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => setScheduleViewMode('list')}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                      isViewer ? 'min-h-[44px]' : 'py-1'
+                    } ${
                       scheduleViewMode === 'list'
                         ? 'bg-surface text-main shadow-xs'
                         : 'text-sec hover:text-main'
@@ -1479,7 +1484,9 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
                   <button
                     type="button"
                     onClick={() => setScheduleViewMode('calendar')}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                      isViewer ? 'min-h-[44px]' : 'py-1'
+                    } ${
                       scheduleViewMode === 'calendar'
                         ? 'bg-surface text-main shadow-xs'
                         : 'text-sec hover:text-main'
@@ -1860,7 +1867,9 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={() => setActiveScheduleId(null)}
-                className="px-4 py-1.5 rounded-xl bg-accent hover:bg-accent-hover text-accent-contrast font-semibold text-xs shadow-xs cursor-pointer transition-colors"
+                className={`bg-accent hover:bg-accent-hover text-accent-contrast font-semibold text-xs cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                  isViewer ? 'px-5 min-h-[44px] rounded-lg' : 'px-4 py-1.5 rounded-xl shadow-xs'
+                }`}
               >
                 {isViewer ? 'Close' : 'Done'}
               </button>

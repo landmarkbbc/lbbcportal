@@ -11,11 +11,12 @@ import {
   Trash2,
   CheckSquare,
   CheckCircle2,
-  Circle
+  Circle,
+  Repeat
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
-import { formatDate, formatTime } from '../lib/dateTime';
+import { formatDate, formatTime, formatWeekPatternBadge } from '../lib/dateTime';
 import { CalendarOccurrence, ChurchEvent, RequiredRoleSpec } from '../types';
 import { renderRoleIcon, isImportantRole } from '../lib/roleIcons';
 import { calculateLinkedDueDate } from '../lib/taskHelpers';
@@ -178,6 +179,17 @@ export const OccurrenceDetailsModal: React.FC<OccurrenceDetailsModalProps> = ({
                 <span>{occurrence.location}</span>
               </div>
             )}
+            {occurrence.type === 'regular_service' && (() => {
+              const srv = regularServices.find(s => s.id === occurrence.sourceId);
+              const weekBadge = srv ? formatWeekPatternBadge(srv) : '';
+              if (!weekBadge) return null;
+              return (
+                <div className="flex items-center gap-2 text-accent font-medium">
+                  <Repeat className="w-4 h-4 shrink-0" />
+                  <span>{weekBadge}</span>
+                </div>
+              );
+            })()}
             {occurrence.notes && (
               <div className="p-2.5 rounded-xl bg-subtle border border-subtle text-sec italic">
                 "{occurrence.notes}"

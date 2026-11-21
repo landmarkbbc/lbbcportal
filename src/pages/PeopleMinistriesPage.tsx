@@ -878,49 +878,54 @@ export const PeopleMinistriesPage: React.FC = () => {
   };
 
   const rootItems = treeNodes['root'] || [];
+  const effectiveActiveTab = isViewer ? 'outline' : activeTab;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 motion-page-enter">
+    <div className={`${isViewer ? 'max-w-[1100px]' : 'max-w-7xl'} mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 motion-page-enter`}>
       {/* Page Header and Tab Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-subtle">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-main">Members & Ministries</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-main">
+            {isViewer ? 'Ministries' : 'Members & Ministries'}
+          </h1>
           <p className="text-sm text-sec mt-0.5">
             {isViewer
-              ? 'View church ministries, roles, and member involvement.'
+              ? 'View church ministries and roles.'
               : 'Organize church ministries, nested roles, and members in a linked relational directory.'}
           </p>
         </div>
 
-        {/* Tab Controls */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-subtle border border-subtle self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('people')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'people'
-                ? 'bg-surface text-main shadow-xs'
-                : 'text-sec hover:text-main'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5 text-accent" />
-            <span>Members List ({people.length})</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('outline');
-            }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'outline'
-                ? 'bg-surface text-main shadow-xs'
-                : 'text-sec hover:text-main'
-            }`}
-          >
-            <FolderTree className="w-3.5 h-3.5 text-accent" />
-            <span>Ministries Outline</span>
-          </button>
-        </div>
+        {/* Tab Controls (Secretary only) */}
+        {!isViewer && (
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-subtle border border-subtle self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab('people')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                effectiveActiveTab === 'people'
+                  ? 'bg-surface text-main shadow-xs'
+                  : 'text-sec hover:text-main'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-accent" />
+              <span>Members List ({people.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('outline');
+              }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                effectiveActiveTab === 'outline'
+                  ? 'bg-surface text-main shadow-xs'
+                  : 'text-sec hover:text-main'
+              }`}
+            >
+              <FolderTree className="w-3.5 h-3.5 text-accent" />
+              <span>Ministries Outline</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {dataLoading.people ? (
@@ -928,7 +933,7 @@ export const PeopleMinistriesPage: React.FC = () => {
       ) : (
         <>
       {/* ================= TAB 1: MINISTRIES OUTLINE ================= */}
-      {activeTab === 'outline' && (
+      {effectiveActiveTab === 'outline' && (
         <div className="space-y-4">
           {!isViewer && (
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -947,7 +952,7 @@ export const PeopleMinistriesPage: React.FC = () => {
           )}
 
           {rootItems.length === 0 ? (
-            <div className="p-12 rounded-2xl bg-surface border border-subtle text-center space-y-4 shadow-card">
+            <div className={`p-12 bg-surface border border-subtle text-center space-y-4 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
               <div className="w-14 h-14 rounded-2xl bg-accent-tint text-accent mx-auto flex items-center justify-center">
                 <ListTree className="w-7 h-7" />
               </div>
@@ -971,18 +976,18 @@ export const PeopleMinistriesPage: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="bg-surface rounded-2xl border border-subtle shadow-card p-4 sm:p-6 space-y-2 motion-list-enter">
+            <div className={`bg-surface border border-subtle p-4 sm:p-6 space-y-2 motion-list-enter ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
               {renderOutlineBranch('root')}
             </div>
           )}
         </div>
       )}
 
-      {/* ================= TAB 2: PEOPLE DIRECTORY ================= */}
-      {activeTab === 'people' && (
+      {/* ================= TAB 2: PEOPLE DIRECTORY (Secretary only) ================= */}
+      {!isViewer && effectiveActiveTab === 'people' && (
         <div className="space-y-4">
           {/* Top Controls: Search, Filters & Add Person */}
-          <div className="bg-surface rounded-2xl border border-subtle shadow-card p-4 sm:p-5 space-y-4">
+          <div className={`bg-surface border border-subtle p-4 sm:p-5 space-y-4 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               {/* Search by Name */}
               <div className="relative flex-1">
@@ -994,13 +999,18 @@ export const PeopleMinistriesPage: React.FC = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search people by name..."
-                  className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-subtle bg-field text-main text-xs focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+                  className={`w-full pl-10 pr-9 border border-subtle bg-field text-main text-xs focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent ${
+                    isViewer ? 'min-h-[44px] py-2.5 rounded-lg' : 'py-2.5 rounded-xl'
+                  }`}
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-mut hover:text-main"
+                    className={`absolute inset-y-0 right-0 flex items-center text-mut hover:text-main focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                      isViewer ? 'px-3 min-w-[44px] justify-center cursor-pointer' : 'pr-3'
+                    }`}
+                    aria-label="Clear search"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1033,7 +1043,9 @@ export const PeopleMinistriesPage: React.FC = () => {
                 <select
                   value={filterRole}
                   onChange={(e) => setFilterRole(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-subtle bg-field text-main text-xs focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+                  className={`w-full px-2.5 border border-subtle bg-field text-main text-xs focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent ${
+                    isViewer ? 'min-h-[44px] rounded-lg' : 'py-1.5 rounded-lg'
+                  }`}
                 >
                   <option value="">All Ministries / Roles</option>
                   {flatOutlineTree.map(({ node, depth }) => (
@@ -1052,7 +1064,9 @@ export const PeopleMinistriesPage: React.FC = () => {
                 <select
                   value={filterDepartment}
                   onChange={(e) => setFilterDepartment(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-subtle bg-field text-main text-xs focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+                  className={`w-full px-2.5 border border-subtle bg-field text-main text-xs focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent ${
+                    isViewer ? 'min-h-[44px] rounded-lg' : 'py-1.5 rounded-lg'
+                  }`}
                 >
                   <option value="">All Departments</option>
                   {DEPARTMENTS.map((dept) => (
@@ -1107,7 +1121,9 @@ export const PeopleMinistriesPage: React.FC = () => {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="w-full px-2.5 py-1.5 rounded-lg border border-subtle bg-field text-main text-xs focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+                  className={`w-full px-2.5 border border-subtle bg-field text-main text-xs focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent ${
+                    isViewer ? 'min-h-[44px] rounded-lg' : 'py-1.5 rounded-lg'
+                  }`}
                 >
                   <option value="name-asc">Name A to Z</option>
                   <option value="name-desc">Name Z to A</option>
@@ -1127,7 +1143,9 @@ export const PeopleMinistriesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleClearFilters}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-subtle bg-subtle hover:bg-surface-hover text-sec hover:text-main text-xs font-medium transition-colors cursor-pointer"
+                  className={`inline-flex items-center gap-1.5 px-3 border border-subtle bg-subtle hover:bg-surface-hover text-sec hover:text-main text-xs font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                    isViewer ? 'min-h-[44px] rounded-lg' : 'px-2.5 py-1 rounded-lg'
+                  }`}
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-accent" />
                   <span>Clear filters</span>
@@ -1139,7 +1157,7 @@ export const PeopleMinistriesPage: React.FC = () => {
           {/* Empty State / People Directory Results (wrapped once so search/filters never replay fade) */}
           <div className="motion-list-enter">
           {filteredAndSortedPeople.length === 0 ? (
-            <div className="p-12 rounded-2xl bg-surface border border-subtle text-center space-y-4 shadow-card">
+            <div className={`p-12 bg-surface border border-subtle text-center space-y-4 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
               <div className="w-14 h-14 rounded-2xl bg-accent-tint text-accent mx-auto flex items-center justify-center">
                 <Users className="w-7 h-7" />
               </div>
@@ -1159,7 +1177,9 @@ export const PeopleMinistriesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleClearFilters}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-subtle hover:bg-surface-hover border border-subtle text-main transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                  className={`px-4 text-xs font-semibold bg-subtle hover:bg-surface-hover border border-subtle text-main transition-colors inline-flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                    isViewer ? 'min-h-[44px] rounded-lg' : 'py-2 rounded-xl'
+                  }`}
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-accent" />
                   <span>Clear All Filters</span>
@@ -1178,7 +1198,7 @@ export const PeopleMinistriesPage: React.FC = () => {
           ) : (
             <>
               {/* Desktop Table View (hidden on phones) */}
-              <div className="hidden md:block bg-surface rounded-2xl border border-subtle shadow-card overflow-hidden">
+              <div className={`hidden md:block bg-surface border border-subtle overflow-hidden ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
@@ -1357,7 +1377,7 @@ export const PeopleMinistriesPage: React.FC = () => {
                   return (
                     <div
                       key={person.id}
-                      className="p-4 rounded-2xl bg-surface border border-subtle shadow-card space-y-2.5 viewer-card"
+                      className={`p-4 bg-surface border border-subtle space-y-2.5 viewer-card ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}
                     >
                       {/* Card Header: Name + Badges + Actions */}
                       <div className="flex items-start justify-between gap-2">

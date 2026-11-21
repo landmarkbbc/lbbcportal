@@ -92,6 +92,9 @@ export const SettingsPage: React.FC = () => {
   const [aiStudioInput, setAiStudioInput] = useState(settings.aiStudioLink || '');
   const [aiStudioError, setAiStudioError] = useState<string | null>(null);
 
+  const [homeWelcomeLineInput, setHomeWelcomeLineInput] = useState(settings.homeWelcomeLine || '');
+  const [homeIntroTextInput, setHomeIntroTextInput] = useState(settings.homeIntroText || '');
+
   useEffect(() => {
     setChurchNameInput(settings.churchName);
   }, [settings.churchName]);
@@ -111,6 +114,14 @@ export const SettingsPage: React.FC = () => {
   useEffect(() => {
     setAiStudioInput(settings.aiStudioLink || '');
   }, [settings.aiStudioLink]);
+
+  useEffect(() => {
+    setHomeWelcomeLineInput(settings.homeWelcomeLine || '');
+  }, [settings.homeWelcomeLine]);
+
+  useEffect(() => {
+    setHomeIntroTextInput(settings.homeIntroText || '');
+  }, [settings.homeIntroText]);
 
   useEffect(() => {
     setDimmingDraft(loginBackground.dimming);
@@ -233,6 +244,26 @@ export const SettingsPage: React.FC = () => {
     }
     if (trimmed !== (settings.secretaryName || '')) {
       updateSettings({ secretaryName: trimmed });
+    }
+  };
+
+  const handleHomeWelcomeBlur = () => {
+    const trimmed = homeWelcomeLineInput.trim();
+    if (trimmed !== homeWelcomeLineInput) {
+      setHomeWelcomeLineInput(trimmed);
+    }
+    if (trimmed !== (settings.homeWelcomeLine || '')) {
+      updateSettings({ homeWelcomeLine: trimmed });
+    }
+  };
+
+  const handleHomeIntroBlur = () => {
+    const trimmed = homeIntroTextInput.trim();
+    if (trimmed !== homeIntroTextInput) {
+      setHomeIntroTextInput(trimmed);
+    }
+    if (trimmed !== (settings.homeIntroText || '')) {
+      updateSettings({ homeIntroText: trimmed });
     }
   };
 
@@ -760,12 +791,51 @@ export const SettingsPage: React.FC = () => {
             )}
           </div>
 
+          {/* Viewer Home Hero & Intro Copy (optional) */}
+          <div className="sm:col-span-2 pt-4 border-t border-subtle grid grid-cols-1 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-main uppercase tracking-wider mb-1.5">
+                Home welcome line (optional)
+              </label>
+              <input
+                type="text"
+                value={homeWelcomeLineInput}
+                onChange={(e) => setHomeWelcomeLineInput(e.target.value)}
+                onBlur={handleHomeWelcomeBlur}
+                maxLength={140}
+                placeholder={`Welcome to ${settings.churchName || 'Our Church'}`}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-subtle bg-field text-main text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+              />
+              <span className="text-xs text-mut mt-1.5 block">
+                Shown underneath the church name on the Viewer Home hero. Leave blank for the default welcome line.
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-main uppercase tracking-wider mb-1.5">
+                Home intro text (optional)
+              </label>
+              <textarea
+                rows={3}
+                value={homeIntroTextInput}
+                onChange={(e) => setHomeIntroTextInput(e.target.value)}
+                onBlur={handleHomeIntroBlur}
+                maxLength={500}
+                placeholder="This is our church bulletin board, online. See what's happening this week, check the calendar and schedules, and stay connected with your church family wherever you are."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-subtle bg-field text-main text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent resize-y"
+              />
+              <span className="text-xs text-mut mt-1.5 block">
+                Short introduction shown directly below the Viewer Home hero. Leave blank for the default text.
+              </span>
+            </div>
+          </div>
+
           {/* Login Screen Background field */}
           <div className="sm:col-span-2 pt-4 border-t border-subtle space-y-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <label className="block text-xs font-semibold text-main uppercase tracking-wider flex items-center gap-1.5">
                 <ImageIcon className="w-3.5 h-3.5 text-accent" />
-                <span>Login screen background</span>
+                <span>Login screen image</span>
               </label>
               <span className="text-[11px] text-mut">
                 {loginBackground.imageData
@@ -1457,7 +1527,7 @@ export const SettingsPage: React.FC = () => {
               <span>Viewer Access</span>
             </h2>
             <p className="text-xs text-sec mt-1">
-              Control how church members view read-only schedules, services, and the calendar from the login screen.
+              Control how church members view read-only schedules, services, and the calendar when they open the site.
             </p>
           </div>
           {savingViewerSettings && (

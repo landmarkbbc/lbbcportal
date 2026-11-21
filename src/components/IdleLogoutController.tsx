@@ -6,14 +6,13 @@ import { useData } from '../context/DataContext';
 const WARNING_SECONDS = 60;
 
 export const IdleLogoutController: React.FC = () => {
-  const { currentUser, isViewer, viewerUnlocked, publicBranding, logout } = useAuth();
+  const { currentUser, isViewer, logout } = useAuth();
   const { viewerSettings, isBusyOperation } = useData();
 
-  const isSessionActive = Boolean(currentUser && (!isViewer || viewerUnlocked));
+  const isSessionActive = Boolean(currentUser && !isViewer);
 
-  const timeoutMinutes = isViewer
-    ? (typeof publicBranding.viewerIdleMinutes === 'number' ? publicBranding.viewerIdleMinutes : 30)
-    : (typeof viewerSettings.secretaryIdleMinutes === 'number' ? viewerSettings.secretaryIdleMinutes : 60);
+  const timeoutMinutes =
+    typeof viewerSettings.secretaryIdleMinutes === 'number' ? viewerSettings.secretaryIdleMinutes : 60;
 
   const [showWarning, setShowWarning] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(WARNING_SECONDS);

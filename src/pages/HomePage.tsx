@@ -21,7 +21,8 @@ import {
   Moon,
   UserCheck,
   Inbox,
-  Database
+  Database,
+  HeartHandshake
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
@@ -30,7 +31,8 @@ import {
   formatDate,
   getDaysOfWeekRange,
   toDateString,
-  getRecurringDates
+  doesRegularServiceOccurOnDate,
+  formatWeekPatternBadge
 } from '../lib/dateTime';
 import { isLastBackupOlderThanDays } from '../lib/backupExport';
 import { CalendarOccurrence, ChurchEvent, Person, MessageTemplate, Task, TaskOccurrenceItem } from '../types';
@@ -48,6 +50,8 @@ import { expandTaskOccurrences, addDaysToDate } from '../lib/taskHelpers';
 import { TaskEditorModal } from '../components/TaskEditorModal';
 import { SnoozeModal } from '../components/SnoozeModal';
 import { PageLoading, Spinner } from '../components/LoadingIndicator';
+import { ViewerHero } from '../components/ViewerHero';
+import { ViewerAnnouncementsSection } from '../components/ViewerAnnouncementsSection';
 
 interface HomePageProps {
   onNavigate: (tab: string) => void;
@@ -59,7 +63,7 @@ function isLeapYear(year: number): boolean {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsToFollowUp }) => {
-  const { isViewer } = useAuth();
+  const { isViewer, publicBranding } = useAuth();
   const {
     settings,
     bannerImage,
@@ -152,7 +156,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
       const dayOfWeek = d.getDay();
 
       for (const service of regularServices) {
-        if (!service.daysOfWeek.includes(dayOfWeek)) continue;
+        if (!doesRegularServiceOccurOnDate(service, d)) continue;
         const override = overrides.find(o => o.serviceId === service.id && o.date === dateStr);
         if (override?.isCancelled) continue;
 
@@ -185,7 +189,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
           isOverridden: !!override,
           overrideId: override?.id,
           isCancelled: false,
-          serviceKind: service.kind === 'activity' ? 'activity' : 'service'
+          serviceKind: service.kind === 'activity' ? 'activity' : 'service',
+          weekPattern: service.weekPattern,
+          weekNumbers: service.weekNumbers
         });
       }
     }
@@ -273,7 +279,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
 
       // Check regular services
       for (const service of regularServices) {
-        if (!service.daysOfWeek.includes(dayOfWeek)) continue;
+        if (!doesRegularServiceOccurOnDate(service, checkDate)) continue;
         const override = overrides.find(o => o.serviceId === service.id && o.date === dateStr);
         if (override?.isCancelled) continue;
 
@@ -297,7 +303,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
           isOverridden: !!override,
           overrideId: override?.id,
           isCancelled: false,
-          serviceKind: service.kind === 'activity' ? 'activity' : 'service'
+          serviceKind: service.kind === 'activity' ? 'activity' : 'service',
+          weekPattern: service.weekPattern,
+          weekNumbers: service.weekNumbers
         };
 
         for (const spec of service.requiredRoles || []) {
@@ -501,7 +509,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
 
     // Regular services
     for (const service of regularServices) {
-      if (service.daysOfWeek.includes(dayOfWeek)) {
+      if (doesRegularServiceOccurOnDate(service, selectedDayDate)) {
         const override = overrides.find(o => o.serviceId === service.id && o.date === dateStr);
         list.push({
           type: 'regular_service',
@@ -517,7 +525,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
           isOverridden: !!override,
           overrideId: override?.id,
           isCancelled: !!override?.isCancelled,
-          serviceKind: service.kind === 'activity' ? 'activity' : 'service'
+          serviceKind: service.kind === 'activity' ? 'activity' : 'service',
+          weekPattern: service.weekPattern,
+          weekNumbers: service.weekNumbers
         });
       }
     }
@@ -563,10 +573,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
   }, [selectedDayDate, people]);
 
   const activeBannerUrl = bannerImage || settings.bannerImage;
+  const displayChurchName = settings.churchName || publicBranding.churchName || 'Our Church';
+  const welcomeLine =
+    (settings.homeWelcomeLine || publicBranding.homeWelcomeLine || '').trim() ||
+    `Welcome to ${displayChurchName}`;
+  const introText =
+    (settings.homeIntroText || publicBranding.homeIntroText || '').trim() ||
+    "This is our church bulletin board, online. See what's happening this week, check the calendar and schedules, and stay connected with your church family wherever you are.";
 
   if (dataLoading.home) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className={`${isViewer ? 'max-w-[1100px] pt-24' : 'max-w-7xl py-6 sm:py-8'} mx-auto px-4 sm:px-6 lg:px-8`}>
         <PageLoading />
       </div>
     );
@@ -580,34 +597,81 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8 motion-page-enter viewer-home-page">
+    <div
+      className={
+        isViewer
+          ? 'motion-page-enter viewer-home-page'
+          : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8 motion-page-enter viewer-home-page'
+      }
+    >
       {/* =========================================================================
-          1. BANNER WITH CLOCK
+          1. VIEWER HERO + INTRO (Viewer) OR ROUNDED BANNER WITH CLOCK (Secretary)
          ========================================================================= */}
-      <div
-        className={`relative overflow-hidden rounded-3xl border border-subtle shadow-card ${
-          isBlackBannerText ? 'text-black' : 'text-white'
-        } min-h-[260px] sm:min-h-[340px] flex flex-col justify-center viewer-home-section viewer-home-s1`}
-      >
-        {/* Banner Background Image or Plain Accent-Tinted Surface */}
-        {activeBannerUrl ? (
-          <img
-            src={activeBannerUrl}
-            alt={settings.churchName}
-            referrerPolicy="no-referrer"
-            className="absolute inset-0 w-full h-full object-cover"
+      {isViewer ? (
+        <>
+          <ViewerHero
+            churchName={displayChurchName}
+            welcomeLine={welcomeLine}
+            bannerUrl={activeBannerUrl}
           />
-        ) : (
-          <div className="absolute inset-0 w-full h-full bg-surface">
-            <div className="absolute inset-0 w-full h-full bg-accent-tint-strong" />
-          </div>
-        )}
 
-        {/* Banner Content Layout: Verse Title + Verse on Left, Centered Clock on Right */}
-        <div className="relative z-10 p-6 sm:p-8 lg:p-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6 h-full my-auto">
-          {/* Verse Title & Daily Verse on Left */}
-          <div className="space-y-2.5 sm:space-y-3 max-w-xl" style={bannerTextShadowStyle}>
-            {!isViewer && (
+          <section
+            aria-label="Welcome"
+            className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-14 pb-8 viewer-home-section viewer-home-s1"
+          >
+            <div className="max-w-2xl mx-auto text-center space-y-6">
+              <p className="text-base sm:text-lg text-sec leading-relaxed">
+                {introText}
+              </p>
+
+              {settings.showDailyVerse !== false && (
+                <div className="pt-4 border-t border-subtle max-w-xl mx-auto space-y-1.5">
+                  <blockquote className="text-sm sm:text-base font-serif italic text-main leading-relaxed">
+                    &ldquo;{dailyVerse.text}&rdquo;
+                  </blockquote>
+                  <div className="text-xs font-semibold tracking-wide text-mut">
+                    &mdash; {dailyVerse.reference} (KJV)
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('prayer-wall')}
+                  className="inline-flex items-center gap-1.5 min-h-[44px] px-3 py-1.5 rounded-lg text-xs font-medium text-sec hover:text-accent transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                >
+                  <HeartHandshake className="w-3.5 h-3.5 text-accent shrink-0" />
+                  <span>Prayer Wall (Coming Soon)</span>
+                </button>
+              </div>
+            </div>
+          </section>
+        </>
+      ) : (
+        <div
+          className={`relative overflow-hidden rounded-3xl border border-subtle shadow-card ${
+            isBlackBannerText ? 'text-black' : 'text-white'
+          } min-h-[260px] sm:min-h-[340px] flex flex-col justify-center viewer-home-section viewer-home-s1`}
+        >
+          {/* Banner Background Image or Plain Accent-Tinted Surface */}
+          {activeBannerUrl ? (
+            <img
+              src={activeBannerUrl}
+              alt={settings.churchName}
+              referrerPolicy="no-referrer"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 w-full h-full bg-surface">
+              <div className="absolute inset-0 w-full h-full bg-accent-tint-strong" />
+            </div>
+          )}
+
+          {/* Banner Content Layout: Verse Title + Verse on Left, Centered Clock on Right */}
+          <div className="relative z-10 p-6 sm:p-8 lg:p-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6 h-full my-auto">
+            {/* Verse Title & Daily Verse on Left */}
+            <div className="space-y-2.5 sm:space-y-3 max-w-xl" style={bannerTextShadowStyle}>
               <div
                 className={`flex items-center gap-2 text-xs uppercase tracking-wider font-semibold ${
                   isBlackBannerText ? 'text-black/80' : 'text-white/85'
@@ -620,45 +684,43 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
                 />
                 <span>Secretary Companion Workspace</span>
               </div>
-            )}
-            <h1
-              key={dailyVerse.reference}
-              className={`home-greeting-enter ${
-                isViewer
-                  ? 'text-[1.95rem] sm:text-[2.95rem] lg:text-[3.9rem]'
-                  : 'text-[1.75rem] sm:text-[2.6rem] lg:text-[3.45rem]'
-              } font-medium tracking-tight leading-[1.12] ${
-                isBlackBannerText ? 'text-black' : 'text-white'
-              }`}
-            >
-              {dailyVerse.title}
-            </h1>
-            {settings.showDailyVerse !== false && (
-              <div className="pt-1 space-y-1 max-w-xl">
-                <blockquote
-                  className={`text-sm sm:text-base font-serif italic leading-relaxed ${
-                    isBlackBannerText ? 'text-black/90' : 'text-white/95'
-                  }`}
-                >
-                  &ldquo;{dailyVerse.text}&rdquo;
-                </blockquote>
-                <div
-                  className={`text-xs sm:text-sm font-semibold tracking-wide ${
-                    isBlackBannerText ? 'text-black/80' : 'text-white/85'
-                  }`}
-                >
-                  — {dailyVerse.reference} (KJV)
+              <h1
+                key={dailyVerse.reference}
+                className={`home-greeting-enter text-[1.75rem] sm:text-[2.6rem] lg:text-[3.45rem] font-medium tracking-tight leading-[1.12] ${
+                  isBlackBannerText ? 'text-black' : 'text-white'
+                }`}
+              >
+                {dailyVerse.title}
+              </h1>
+              {settings.showDailyVerse !== false && (
+                <div className="pt-1 space-y-1 max-w-xl">
+                  <blockquote
+                    className={`text-sm sm:text-base font-serif italic leading-relaxed ${
+                      isBlackBannerText ? 'text-black/90' : 'text-white/95'
+                    }`}
+                  >
+                    &ldquo;{dailyVerse.text}&rdquo;
+                  </blockquote>
+                  <div
+                    className={`text-xs sm:text-sm font-semibold tracking-wide ${
+                      isBlackBannerText ? 'text-black/80' : 'text-white/85'
+                    }`}
+                  >
+                    — {dailyVerse.reference} (KJV)
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* Clock centered vertically on Right */}
-          <div className="w-full sm:w-auto shrink-0 flex items-center justify-center">
-            <BannerClock />
+            {/* Clock centered vertically on Right */}
+            <div className="w-full sm:w-auto shrink-0 flex items-center justify-center">
+              <BannerClock />
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      <div className={isViewer ? 'max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 pb-8 space-y-8 sm:space-y-10' : 'space-y-6 sm:space-y-8'}>
 
       {/* =========================================================================
           REMINDERS PANEL (near top of dashboard below banner)
@@ -770,12 +832,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
             selectedDate={selectedDayDate}
             onSelectDay={(d) => setSelectedDayDate(d)}
             onFullView={() => onNavigate('calendar')}
+            isViewer={isViewer}
           />
         </div>
 
         {/* RIGHT (40%): Birthdays This Month (scrolls inside box if longer than calendar) */}
         <div className="lg:col-span-2 relative">
-          <div className="bg-surface rounded-2xl border border-subtle shadow-card p-4 sm:p-5 flex flex-col lg:absolute lg:inset-0 overflow-hidden">
+          <div
+            className={`bg-surface border border-subtle p-4 sm:p-5 flex flex-col lg:absolute lg:inset-0 overflow-hidden ${
+              isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'
+            }`}
+          >
             <div className="shrink-0 flex items-center justify-between gap-2 pb-2.5 border-b border-subtle">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="p-1.5 rounded-lg bg-pink-100 text-pink-600 dark:bg-pink-950/60 dark:text-pink-400 shrink-0">
@@ -784,19 +851,21 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
                 <h2 className="text-sm sm:text-base font-bold text-main tracking-tight truncate">
                   Birthdays This Month
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-pink-100 dark:bg-pink-950/60 text-pink-800 dark:text-pink-300 border border-pink-300 dark:border-pink-800 shrink-0">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-pink-100 dark:bg-pink-950/60 text-pink-800 dark:text-pink-300 border border-pink-300 dark:border-pink-800 shrink-0 tabular-nums">
                   {birthdaysThisMonth.length}
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onNavigate('people-ministries')}
-                className="text-xs font-semibold text-accent hover:underline flex items-center gap-1 cursor-pointer shrink-0"
-              >
-                <span>Members List</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
+              {!isViewer && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('people-ministries')}
+                  className="text-xs font-semibold text-accent hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  <span>Members List</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             {birthdaysThisMonth.length === 0 ? (
@@ -870,7 +939,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
           </div>
           <button
             onClick={() => onNavigate('calendar')}
-            className="text-xs font-semibold text-accent hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+            className={`text-xs font-semibold text-accent hover:underline flex items-center gap-1 cursor-pointer shrink-0 ${
+              isViewer
+                ? 'min-h-[44px] px-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
+                : ''
+            }`}
           >
             <span>Open Calendar</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -900,7 +973,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
               <div
                 key={`${occ.sourceId}_${occ.date}_${idx}`}
                 onClick={() => setSelectedOccurrence(occ)}
-                className={`p-4 sm:p-5 rounded-2xl bg-surface border motion-card cursor-pointer hover:shadow-card hover:border-strong flex flex-col justify-between ${
+                className={`p-4 sm:p-5 bg-surface border motion-card cursor-pointer flex flex-col justify-between ${
+                  isViewer
+                    ? 'rounded-xl hover:border-strong'
+                    : 'rounded-2xl hover:shadow-card hover:border-strong'
+                } ${
                   isToday ? 'border-accent ring-1 ring-accent/30' : 'border-subtle'
                 }`}
               >
@@ -943,6 +1020,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
                         </span>
                       )}
                     </div>
+                    {(() => {
+                      const srv = regularServices.find(s => s.id === occ.sourceId);
+                      const weekBadge = srv ? formatWeekPatternBadge(srv) : '';
+                      if (!weekBadge) return null;
+                      return (
+                        <p className="text-[11px] font-medium text-accent mt-1 truncate" title={weekBadge}>
+                          {weekBadge}
+                        </p>
+                      );
+                    })()}
                   </div>
 
                   {importantRoles.length > 0 && (
@@ -988,7 +1075,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
 
           {/* If no regular services upcoming at all, show helpful guidance */}
           {upcomingServices.length === 0 && (
-            <div className="col-span-1 md:col-span-2 lg:col-span-3 p-6 rounded-2xl bg-surface border border-subtle flex flex-col justify-center items-center text-center space-y-3">
+            <div
+              className={`col-span-1 md:col-span-2 lg:col-span-3 p-6 bg-surface border border-subtle flex flex-col justify-center items-center text-center space-y-3 ${
+                isViewer ? 'rounded-xl' : 'rounded-2xl'
+              }`}
+            >
               <CalendarDays className="w-8 h-8 text-mut mx-auto" />
               <div>
                 <h4 className="text-sm font-bold text-main">No regular services or activities scheduled</h4>
@@ -1021,7 +1112,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
             return (
               <div
                 onClick={() => setSelectedOccurrence(upcomingEvent)}
-                className={`p-4 sm:p-5 rounded-2xl bg-surface border motion-card cursor-pointer hover:shadow-card hover:border-strong flex flex-col justify-between ${
+                className={`p-4 sm:p-5 bg-surface border motion-card cursor-pointer flex flex-col justify-between ${
+                  isViewer
+                    ? 'rounded-xl hover:border-strong'
+                    : 'rounded-2xl hover:shadow-card hover:border-strong'
+                } ${
                   isToday ? 'border-accent ring-1 ring-accent/30' : 'border-subtle'
                 }`}
               >
@@ -1102,7 +1197,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
               </div>
             );
           })() : (
-            <div className="p-5 rounded-2xl bg-surface border border-dashed border-subtle flex flex-col items-center justify-center text-center space-y-3 min-h-[220px]">
+            <div
+              className={`p-5 bg-surface border border-dashed border-subtle flex flex-col items-center justify-center text-center space-y-3 min-h-[220px] ${
+                isViewer ? 'rounded-xl' : 'rounded-2xl'
+              }`}
+            >
               <div className="w-10 h-10 rounded-full bg-subtle flex items-center justify-center text-mut">
                 <CalendarPlus className="w-5 h-5" />
               </div>
@@ -1128,6 +1227,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
           )}
         </div>
       </div>
+
+      {/* =========================================================================
+          5b. ANNOUNCEMENTS (Viewer only, below Upcoming; hidden when empty)
+         ========================================================================= */}
+      {isViewer && <ViewerAnnouncementsSection />}
 
       {/* =========================================================================
           5. NEEDS ATTENTION (Secretary only, below Upcoming)
@@ -1461,6 +1565,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
           )}
         </div>
       )}
+      </div>
 
       {/* =========================================================================
           DAY DETAILS MODAL (from clicking day in compact calendar)
