@@ -47,6 +47,7 @@ import {
 } from '../types';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ScheduleCalendarView } from '../components/ScheduleCalendarView';
+import { ViewerSchedulesView } from '../components/ViewerSchedulesView';
 import { renderRoleIcon, isImportantRole } from '../lib/roleIcons';
 import { PageLoading, Spinner } from '../components/LoadingIndicator';
 
@@ -925,6 +926,10 @@ export const SchedulesPage: React.FC<SchedulesPageProps> = ({ onNavigate }) => {
     gaps.sort((a, b) => a.date.localeCompare(b.date));
     return gaps;
   }, [regularServices, assignments, overrides, todayStr]);
+
+  if (isViewer) {
+    return <ViewerSchedulesView />;
+  }
 
   return (
     <div className={`${isViewer ? 'max-w-[1100px]' : 'max-w-7xl'} mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 motion-page-enter`}>
