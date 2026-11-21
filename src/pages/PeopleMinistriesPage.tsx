@@ -952,7 +952,7 @@ export const PeopleMinistriesPage: React.FC = () => {
           )}
 
           {rootItems.length === 0 ? (
-            <div className={`p-12 bg-surface border border-subtle text-center space-y-4 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
+            <div className={`p-12 text-center space-y-4 ${isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl shadow-card'}`}>
               <div className="w-14 h-14 rounded-2xl bg-accent-tint text-accent mx-auto flex items-center justify-center">
                 <ListTree className="w-7 h-7" />
               </div>
@@ -976,7 +976,7 @@ export const PeopleMinistriesPage: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className={`bg-surface border border-subtle p-4 sm:p-6 space-y-2 motion-list-enter ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
+            <div className={`p-4 sm:p-6 space-y-2 motion-list-enter ${isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl shadow-card'}`}>
               {renderOutlineBranch('root')}
             </div>
           )}

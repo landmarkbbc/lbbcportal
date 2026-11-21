@@ -23,6 +23,7 @@ import { renderRoleIcon, isImportantRole } from '../lib/roleIcons';
 import { expandTaskOccurrences } from '../lib/taskHelpers';
 import { TaskEditorModal } from './TaskEditorModal';
 import { SnoozeModal } from './SnoozeModal';
+import { getReadableViewerTitleColor } from '../lib/colorContrast';
 
 export interface DayDetailsModalProps {
   date: Date;
@@ -357,7 +358,23 @@ export const DayDetailsModal: React.FC<DayDetailsModalProps> = ({
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="text-sm font-bold text-main group-hover:text-accent transition-colors truncate">
+                            <h4
+                              className={`font-bold group-hover:text-accent transition-colors truncate ${
+                                isViewer ? 'text-base' : 'text-sm text-main'
+                              }`}
+                              style={
+                                isViewer
+                                  ? {
+                                      color: getReadableViewerTitleColor(
+                                        occ.color,
+                                        settings.theme,
+                                        settings.colorScheme,
+                                        settings.accentColor
+                                      )
+                                    }
+                                  : undefined
+                              }
+                            >
                               {occ.title}
                             </h4>
                             {occ.isCancelled ? (

@@ -8,7 +8,7 @@ export const PrayerWallPage: React.FC = () => {
 
   return (
     <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-14 motion-page-enter">
-      <div className="max-w-2xl mx-auto rounded-xl bg-surface border border-subtle p-6 sm:p-10 text-center space-y-5">
+      <div className="max-w-2xl mx-auto viewer-card p-6 sm:p-10 text-center space-y-5">
         <div className="mx-auto w-14 h-14 rounded-xl bg-accent-tint border border-accent/20 text-accent flex items-center justify-center">
           <HeartHandshake className="w-7 h-7" />
         </div>

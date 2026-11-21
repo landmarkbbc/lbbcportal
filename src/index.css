@@ -253,6 +253,20 @@
 .ring-offset-surface { --tw-ring-offset-color: var(--bg-surface); }
 .ring-offset-canvas { --tw-ring-offset-color: var(--bg-canvas); }
 
+@layer components {
+  .viewer-card {
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-subtle);
+    background-color: var(--bg-surface);
+    box-shadow: 0 0 14px 0 rgb(0 0 0 / 0.11);
+  }
+
+  [data-color-scheme="dark"] .viewer-card {
+    border-color: color-mix(in srgb, var(--border-strong) 70%, rgb(255 255 255 / 0.16));
+    box-shadow: 0 0 14px 0 rgb(255 255 255 / 0.06);
+  }
+}
+
 /* Soft subtle divide borders and table dividers across all themes */
 .divide-subtle > * {
   border-color: var(--border-subtle);
@@ -1054,15 +1068,15 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
   transition:
     border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
     background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (hover: hover) {
   .viewer-motion .motion-card:hover,
-  .viewer-motion .viewer-card:hover {
+  .viewer-motion .viewer-card.cursor-pointer:hover {
     transform: translate3d(0, -1px, 0);
     border-color: var(--border-strong);
-    box-shadow: none;
   }
 }
 

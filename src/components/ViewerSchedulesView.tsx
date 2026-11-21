@@ -18,10 +18,11 @@ import {
   formatWeekPatternBadge
 } from '../lib/dateTime';
 import { renderRoleIcon, isImportantRole } from '../lib/roleIcons';
+import { getReadableViewerTitleColor } from '../lib/colorContrast';
 import { OutlineNode, RequiredRoleSpec, RoleAssignment } from '../types';
 import { PageLoading } from './LoadingIndicator';
 
-type ScheduleFilterType = 'all' | 'services' | 'activities' | 'events';
+type ScheduleFilterType = 'services' | 'activities' | 'events' | 'all';
 
 interface ViewerOccurrenceItem {
   key: string;
@@ -181,10 +182,10 @@ const HighlightedName: React.FC<{ text: string; query: string }> = ({ text, quer
 };
 
 const FILTER_OPTIONS: { value: ScheduleFilterType; label: string }[] = [
-  { value: 'all', label: 'All' },
   { value: 'services', label: 'Services' },
   { value: 'activities', label: 'Activities' },
-  { value: 'events', label: 'Events' }
+  { value: 'events', label: 'Events' },
+  { value: 'all', label: 'All' }
 ];
 
 export const ViewerSchedulesView: React.FC = () => {
@@ -199,7 +200,7 @@ export const ViewerSchedulesView: React.FC = () => {
   } = useData();
 
   const [weekOffset, setWeekOffset] = useState<number>(0);
-  const [filterType, setFilterType] = useState<ScheduleFilterType>('all');
+  const [filterType, setFilterType] = useState<ScheduleFilterType>('services');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedBlocks, setExpandedBlocks] = useState<Record<string, boolean>>({});
 
@@ -227,6 +228,16 @@ export const ViewerSchedulesView: React.FC = () => {
     }
     return map;
   }, [assignments]);
+
+  const resolveTitleColor = useMemo(() => {
+    return (rawColor?: string) =>
+      getReadableViewerTitleColor(
+        rawColor,
+        settings.theme,
+        settings.colorScheme,
+        settings.accentColor
+      );
+  }, [settings.theme, settings.colorScheme, settings.accentColor]);
 
   const buildOccurrencesForRange = useMemo(() => {
     return (startStr: string, endStr: string): ViewerOccurrenceItem[] => {
@@ -256,7 +267,7 @@ export const ViewerSchedulesView: React.FC = () => {
             startTime: override?.startTime || s.startTime,
             endTime: override?.endTime || s.endTime,
             location: override?.location || s.location,
-            color: s.color || 'var(--accent-base)',
+            color: s.color || '',
             weekPatternBadge: weekBadge || undefined,
             requiredRoles: s.requiredRoles || []
           });
@@ -279,7 +290,7 @@ export const ViewerSchedulesView: React.FC = () => {
             startTime: ev.startTime,
             endTime: ev.endTime,
             location: ev.location,
-            color: ev.color || 'var(--accent-base)',
+            color: ev.color || '',
             requiredRoles: ev.requiredRoles || []
           });
         }
@@ -448,8 +459,8 @@ export const ViewerSchedulesView: React.FC = () => {
         <PageLoading />
       ) : (
         <div className="space-y-4">
-          {/* Search Box & Filter Chips Bar */}
-          <div className="bg-surface border border-subtle rounded-xl p-3 sm:p-4 space-y-3">
+          {/* Search Box, Filter Chips & Week Navigation Bar */}
+          <div className="viewer-card p-3.5 sm:p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
               {/* Find My Name Search */}
               <div className="relative flex-1 sm:max-w-sm min-w-0">
@@ -475,7 +486,7 @@ export const ViewerSchedulesView: React.FC = () => {
                 )}
               </div>
 
-              {/* Filter Chips */}
+              {/* Filter Chips: Services, Activities, Events, All */}
               <div
                 data-no-swipe
                 className="flex flex-wrap items-center gap-1.5"
@@ -565,7 +576,7 @@ export const ViewerSchedulesView: React.FC = () => {
           {/* Search Results View (Next 8 Weeks) */}
           {trimmedSearch ? (
             searchResultsByDate.length === 0 ? (
-              <div className="bg-surface border border-subtle rounded-xl p-8 sm:p-10 text-center space-y-2">
+              <div className="viewer-card p-8 sm:p-10 text-center space-y-2">
                 <Search className="w-7 h-7 text-mut mx-auto" />
                 <p className="text-sm font-semibold text-main">
                   No upcoming schedule found for that name.
@@ -579,12 +590,12 @@ export const ViewerSchedulesView: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3.5">
                 {searchResultsByDate.map((group) => (
                   <section
                     key={group.dateStr}
-                    className={`bg-surface border rounded-xl overflow-hidden ${
-                      group.isToday ? 'border-accent/50' : 'border-subtle'
+                    className={`viewer-card overflow-hidden ${
+                      group.isToday ? 'border-accent/60' : ''
                     }`}
                   >
                     <div className="px-4 py-2.5 bg-subtle/50 border-b border-subtle flex items-center justify-between gap-2">
@@ -603,16 +614,13 @@ export const ViewerSchedulesView: React.FC = () => {
                           className="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 min-w-0"
                         >
                           <div className="min-w-0 space-y-0.5">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span
-                                className="w-2.5 h-2.5 rounded-full shrink-0"
-                                style={{ backgroundColor: m.occColor }}
-                              />
-                              <span className="text-sm font-semibold text-main truncate">
-                                {m.occTitle}
-                              </span>
+                            <div
+                              className="text-sm sm:text-base font-bold truncate"
+                              style={{ color: resolveTitleColor(m.occColor) }}
+                            >
+                              {m.occTitle}
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-sec pl-4.5 tabular-nums flex-wrap">
+                            <div className="flex items-center gap-2 text-xs text-sec tabular-nums flex-wrap">
                               <span>
                                 {formatTime(m.startTime, settings.timeFormat)}
                                 {m.endTime ? ` – ${formatTime(m.endTime, settings.timeFormat)}` : ''}
@@ -631,7 +639,7 @@ export const ViewerSchedulesView: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="text-sm font-semibold text-main pl-4.5 sm:pl-0 shrink-0">
+                          <div className="text-sm font-bold text-main shrink-0">
                             <HighlightedName text={m.personName} query={trimmedSearch} />
                           </div>
                         </div>
@@ -643,22 +651,22 @@ export const ViewerSchedulesView: React.FC = () => {
             )
           ) : weekDayCards.length === 0 ? (
             /* Empty Week State */
-            <div className="bg-surface border border-subtle rounded-xl p-8 sm:p-10 text-center space-y-2">
+            <div className="viewer-card p-8 sm:p-10 text-center space-y-2">
               <CalendarDays className="w-7 h-7 text-mut mx-auto" />
               <p className="text-sm font-semibold text-main">Nothing scheduled this week.</p>
             </div>
           ) : (
             /* Week View Day Cards */
-            <div className="space-y-3.5">
+            <div className="space-y-4">
               {weekDayCards.map((day) => (
                 <section
                   key={day.dateStr}
-                  className={`bg-surface border rounded-xl overflow-hidden transition-opacity ${
+                  className={`viewer-card overflow-hidden transition-opacity ${
                     day.isToday
                       ? 'border-accent/60'
                       : day.isPast
-                        ? 'border-subtle opacity-65'
-                        : 'border-subtle'
+                        ? 'opacity-65'
+                        : ''
                   }`}
                 >
                   {/* Day Header */}
@@ -680,22 +688,20 @@ export const ViewerSchedulesView: React.FC = () => {
                       const hasMoreThanSix = block.roles.length > 6;
                       const visibleRoles =
                         hasMoreThanSix && !isExpanded ? block.roles.slice(0, 6) : block.roles;
+                      const titleColor = resolveTitleColor(block.color);
 
                       return (
-                        <div key={block.key} className="p-4 space-y-3 min-w-0">
-                          {/* Block Header: Color dot, Title, Time, Location */}
+                        <div key={block.key} className="p-4 sm:p-5 space-y-3 min-w-0">
+                          {/* Block Header: Larger, Bolder Colored Title + Time & Location */}
                           <div className="space-y-1 min-w-0">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span
-                                className="w-2.5 h-2.5 rounded-full shrink-0"
-                                style={{ backgroundColor: block.color }}
-                              />
-                              <h3 className="text-sm sm:text-base font-bold text-main truncate">
-                                {block.title}
-                              </h3>
-                            </div>
+                            <h3
+                              className="text-base sm:text-lg font-bold tracking-tight truncate"
+                              style={{ color: titleColor }}
+                            >
+                              {block.title}
+                            </h3>
 
-                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-sec pl-4.5">
+                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-sec">
                               {block.startTime && (
                                 <span className="inline-flex items-center gap-1 tabular-nums">
                                   <Clock className="w-3.5 h-3.5 text-mut shrink-0" />
@@ -723,10 +729,11 @@ export const ViewerSchedulesView: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Roles Grid: 2 cols desktop, 1 col phones */}
+                          {/* Roles */}
                           {block.roles.length > 0 && (
-                            <div className="space-y-1.5">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+                            <div className="space-y-2">
+                              {/* Phone Layout (< 768px): Single-column list with role on left and name on right */}
+                              <div className="md:hidden">
                                 {visibleRoles.map((role) => (
                                   <div
                                     key={role.key}
@@ -739,7 +746,7 @@ export const ViewerSchedulesView: React.FC = () => {
                                         </span>
                                       )}
                                       <span
-                                        className={`truncate text-[13px] ${
+                                        className={`truncate text-xs ${
                                           role.isImportant
                                             ? 'font-bold text-main'
                                             : 'font-normal text-sec'
@@ -756,6 +763,45 @@ export const ViewerSchedulesView: React.FC = () => {
                                             ? 'font-bold text-main'
                                             : 'font-medium text-main'
                                           : 'text-mut'
+                                      }`}
+                                    >
+                                      {role.personName || 'To be assigned'}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Tablet & Desktop Layout (>= 768px): Compact role tiles (2 small tablet, 3 medium, 4 desktop) */}
+                              <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                                {visibleRoles.map((role) => (
+                                  <div
+                                    key={role.key}
+                                    className="rounded-lg border border-subtle/80 bg-subtle/45 px-3 py-2 space-y-0.5 min-w-0"
+                                  >
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      {role.iconKey && (
+                                        <span className="text-accent shrink-0">
+                                          {renderRoleIcon(role.iconKey, 'w-3 h-3')}
+                                        </span>
+                                      )}
+                                      <span
+                                        className={`truncate text-[11px] leading-tight ${
+                                          role.isImportant
+                                            ? 'font-bold text-sec'
+                                            : 'font-medium text-mut'
+                                        }`}
+                                      >
+                                        {role.roleName}
+                                      </span>
+                                    </div>
+
+                                    <div
+                                      className={`truncate text-sm leading-snug ${
+                                        role.personName
+                                          ? role.isImportant
+                                            ? 'font-bold text-main'
+                                            : 'font-semibold text-main'
+                                          : 'font-normal text-mut'
                                       }`}
                                     >
                                       {role.personName || 'To be assigned'}

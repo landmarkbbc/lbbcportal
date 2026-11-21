@@ -45,8 +45,8 @@ const ViewerAnnouncementCard: React.FC<{ announcement: Announcement }> = ({ anno
 
   return (
     <article
-      className={`rounded-xl border bg-surface p-4 sm:p-5 viewer-card space-y-2.5 transition-colors ${
-        announcement.pinned ? 'border-accent/35' : 'border-subtle'
+      className={`viewer-card p-4 sm:p-5 space-y-2.5 transition-colors ${
+        announcement.pinned ? 'border-accent/35' : ''
       }`}
     >
       <div className="flex items-start justify-between gap-3">

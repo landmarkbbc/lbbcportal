@@ -21,6 +21,7 @@ import { CalendarOccurrence, ChurchEvent, RequiredRoleSpec } from '../types';
 import { renderRoleIcon, isImportantRole } from '../lib/roleIcons';
 import { calculateLinkedDueDate } from '../lib/taskHelpers';
 import { Spinner } from './LoadingIndicator';
+import { getReadableViewerTitleColor } from '../lib/colorContrast';
 
 interface OccurrenceDetailsModalProps {
   occurrence: CalendarOccurrence;
@@ -132,10 +133,12 @@ export const OccurrenceDetailsModal: React.FC<OccurrenceDetailsModalProps> = ({
           <div className="flex items-start justify-between gap-2.5 pb-2.5 border-b border-subtle">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
-                <span
-                  className="w-3 h-3 rounded-full shrink-0"
-                  style={{ backgroundColor: occurrence.color || 'var(--accent-base)' }}
-                />
+                {!isViewer && (
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: occurrence.color || 'var(--accent-base)' }}
+                  />
+                )}
                 <span className="text-xs font-semibold text-accent uppercase tracking-wider">
                   {occurrence.type === 'regular_service'
                     ? (occurrence.serviceKind === 'activity' ? 'Regular Activity Occurrence' : 'Regular Service Occurrence')
@@ -147,7 +150,23 @@ export const OccurrenceDetailsModal: React.FC<OccurrenceDetailsModalProps> = ({
                   </span>
                 )}
               </div>
-              <h3 className="text-lg sm:text-xl font-bold text-main leading-snug">{occurrence.title}</h3>
+              <h3
+                className={`font-bold leading-snug ${isViewer ? 'text-xl sm:text-[1.35rem]' : 'text-lg sm:text-xl text-main'}`}
+                style={
+                  isViewer
+                    ? {
+                        color: getReadableViewerTitleColor(
+                          occurrence.color,
+                          settings.theme,
+                          settings.colorScheme,
+                          settings.accentColor
+                        )
+                      }
+                    : undefined
+                }
+              >
+                {occurrence.title}
+              </h3>
             </div>
             <button
               type="button"

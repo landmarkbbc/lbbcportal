@@ -55,6 +55,7 @@ import { EventFormModal } from '../components/EventFormModal';
 import { renderRoleIcon, isImportantRole } from '../lib/roleIcons';
 import { expandTaskOccurrences } from '../lib/taskHelpers';
 import { PageLoading } from '../components/LoadingIndicator';
+import { getReadableViewerTitleColor } from '../lib/colorContrast';
 
 // Helper for leap year calculation
 function isLeapYear(year: number): boolean {
@@ -641,7 +642,7 @@ export const CalendarPage: React.FC = () => {
       ) : (
         <>
       {/* Calendar Controls & Filters Bar */}
-      <div className={`bg-surface border border-subtle p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
+      <div className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 ${isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl shadow-card'}`}>
         {/* Month Navigation */}
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-bold text-main min-w-[160px]">
@@ -816,7 +817,7 @@ export const CalendarPage: React.FC = () => {
 
       {/* ================= VIEW 1: MONTH VIEW ================= */}
       {viewMode === 'month' && (
-        <div className={`bg-surface border border-subtle overflow-hidden ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
+        <div className={`overflow-hidden ${isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl shadow-card'}`}>
           {/* Weekday Header */}
           <div className="grid grid-cols-7 border-b border-subtle bg-subtle/50 text-center py-2.5 text-xs font-bold uppercase tracking-wider text-mut">
             {weekHeaders.map(day => (
@@ -897,11 +898,21 @@ export const CalendarPage: React.FC = () => {
                         {dayOccurrences.slice(0, 3).map((occ, oIdx) => (
                           <div
                             key={oIdx}
-                            className={`border-l-2 pl-1.5 text-[10px] sm:text-xs leading-tight text-main font-medium break-words flex items-center gap-1 ${
+                            className={`border-l-2 pl-1.5 text-[10px] sm:text-xs leading-tight break-words flex items-center gap-1 ${
+                              isViewer ? 'font-semibold' : 'text-main font-medium'
+                            } ${
                               occ.isCancelled ? 'line-through opacity-50' : ''
                             }`}
                             style={{
-                              borderColor: occ.color || 'var(--accent-base)'
+                              borderColor: occ.color || 'var(--accent-base)',
+                              color: isViewer
+                                ? getReadableViewerTitleColor(
+                                    occ.color,
+                                    settings.theme,
+                                    settings.colorScheme,
+                                    settings.accentColor
+                                  )
+                                : undefined
                             }}
                           >
                             {occ.serviceKind === 'activity' && (
@@ -933,7 +944,7 @@ export const CalendarPage: React.FC = () => {
         <div ref={listTopRef} className="space-y-4">
           {visibleListItemsByDate.length === 0 ? (
             hidePastDays && (isViewedMonthPast || listItemsByDate.length > 0) ? (
-              <div className={`p-10 sm:p-12 bg-surface border border-subtle text-center space-y-3.5 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
+              <div className={`p-10 sm:p-12 text-center space-y-3.5 ${isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl shadow-card'}`}>
                 <div className="w-12 h-12 rounded-2xl bg-accent-tint text-accent mx-auto flex items-center justify-center">
                   <EyeOff className="w-6 h-6" />
                 </div>
@@ -951,7 +962,7 @@ export const CalendarPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className={`p-12 bg-surface border border-subtle text-center space-y-3 ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
+              <div className={`p-12 text-center space-y-3 ${isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl shadow-card'}`}>
                 <div className="w-14 h-14 rounded-2xl bg-accent-tint text-accent mx-auto flex items-center justify-center">
                   <CalendarIcon className="w-7 h-7" />
                 </div>
@@ -962,7 +973,7 @@ export const CalendarPage: React.FC = () => {
               </div>
             )
           ) : (
-            <div className={`bg-surface border border-subtle divide-y divide-subtle overflow-hidden motion-list-enter ${isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'}`}>
+            <div className={`divide-y divide-subtle overflow-hidden motion-list-enter ${isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl shadow-card'}`}>
               {visibleListItemsByDate.map(({ dateStr, dateObj, occurrences, birthdays }) => {
                 const isToday = dateStr === todayStr;
 
@@ -1035,10 +1046,12 @@ export const CalendarPage: React.FC = () => {
                           }`}
                         >
                           <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                            <div
-                              className="w-3 h-12 rounded-full shrink-0 mt-0.5 shadow-2xs"
-                              style={{ backgroundColor: occ.color || 'var(--accent-base)' }}
-                            />
+                            {!isViewer && (
+                              <div
+                                className="w-3 h-12 rounded-full shrink-0 mt-0.5 shadow-2xs"
+                                style={{ backgroundColor: occ.color || 'var(--accent-base)' }}
+                              />
+                            )}
                             <div className="space-y-1.5 flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs font-semibold text-accent uppercase tracking-wider">
@@ -1066,7 +1079,23 @@ export const CalendarPage: React.FC = () => {
                                 )}
                               </div>
 
-                              <h3 className={`text-base font-bold text-main ${occ.isCancelled ? 'line-through opacity-60' : ''}`}>
+                              <h3
+                                className={`font-bold ${
+                                  isViewer ? 'text-base sm:text-lg' : 'text-base text-main'
+                                } ${occ.isCancelled ? 'line-through opacity-60' : ''}`}
+                                style={
+                                  isViewer
+                                    ? {
+                                        color: getReadableViewerTitleColor(
+                                          occ.color,
+                                          settings.theme,
+                                          settings.colorScheme,
+                                          settings.accentColor
+                                        )
+                                      }
+                                    : undefined
+                                }
+                              >
                                 {occ.title}
                               </h3>
 

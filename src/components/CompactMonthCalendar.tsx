@@ -152,8 +152,8 @@ export const CompactMonthCalendar: React.FC<CompactMonthCalendarProps> = ({
 
   return (
     <div
-      className={`bg-surface border border-subtle p-4 sm:p-5 flex flex-col justify-between ${
-        isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'
+      className={`p-4 sm:p-5 flex flex-col justify-between ${
+        isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl shadow-card'
       }`}
     >
       {/* Top Card Header: Monthly Calendar + Full View */}

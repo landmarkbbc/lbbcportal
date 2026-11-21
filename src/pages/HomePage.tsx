@@ -52,6 +52,7 @@ import { SnoozeModal } from '../components/SnoozeModal';
 import { PageLoading, Spinner } from '../components/LoadingIndicator';
 import { ViewerHero } from '../components/ViewerHero';
 import { ViewerAnnouncementsSection } from '../components/ViewerAnnouncementsSection';
+import { getReadableViewerTitleColor } from '../lib/colorContrast';
 
 interface HomePageProps {
   onNavigate: (tab: string) => void;
@@ -840,8 +841,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
         {/* RIGHT (40%): Birthdays This Month (scrolls inside box if longer than calendar) */}
         <div className="lg:col-span-2 relative">
           <div
-            className={`bg-surface border border-subtle p-4 sm:p-5 flex flex-col lg:absolute lg:inset-0 overflow-hidden ${
-              isViewer ? 'rounded-xl shadow-none' : 'rounded-2xl shadow-card'
+            className={`p-4 sm:p-5 flex flex-col lg:absolute lg:inset-0 overflow-hidden ${
+              isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl shadow-card'
             }`}
           >
             <div className="shrink-0 flex items-center justify-between gap-2 pb-2.5 border-b border-subtle">
@@ -974,12 +975,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
               <div
                 key={`${occ.sourceId}_${occ.date}_${idx}`}
                 onClick={() => setSelectedOccurrence(occ)}
-                className={`p-4 sm:p-5 bg-surface border motion-card cursor-pointer flex flex-col justify-between ${
+                className={`p-4 sm:p-5 motion-card cursor-pointer flex flex-col justify-between ${
                   isViewer
-                    ? 'rounded-xl hover:border-strong'
-                    : 'rounded-2xl hover:shadow-card hover:border-strong'
-                } ${
-                  isToday ? 'border-accent ring-1 ring-accent/30' : 'border-subtle'
+                    ? `viewer-card hover:border-strong ${isToday ? 'border-accent ring-1 ring-accent/30' : ''}`
+                    : `bg-surface border rounded-2xl hover:shadow-card hover:border-strong ${
+                        isToday ? 'border-accent ring-1 ring-accent/30' : 'border-subtle'
+                      }`
                 }`}
               >
                 <div className="space-y-3">
@@ -995,15 +996,33 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
                         </span>
                       )}
                     </div>
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
-                      style={{ backgroundColor: occ.color || 'var(--accent-base)' }}
-                      title="Service color"
-                    />
+                    {!isViewer && (
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
+                        style={{ backgroundColor: occ.color || 'var(--accent-base)' }}
+                        title="Service color"
+                      />
+                    )}
                   </div>
 
                   <div>
-                    <h4 className="text-base font-bold text-main line-clamp-1">
+                    <h4
+                      className={`font-bold line-clamp-1 ${
+                        isViewer ? 'text-base sm:text-lg' : 'text-base text-main'
+                      }`}
+                      style={
+                        isViewer
+                          ? {
+                              color: getReadableViewerTitleColor(
+                                occ.color,
+                                settings.theme,
+                                settings.colorScheme,
+                                settings.accentColor
+                              )
+                            }
+                          : undefined
+                      }
+                    >
                       {occ.title}
                     </h4>
                     <div className="flex items-center gap-3 text-xs text-sec mt-1">
@@ -1077,8 +1096,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
           {/* If no regular services upcoming at all, show helpful guidance */}
           {upcomingServices.length === 0 && (
             <div
-              className={`col-span-1 md:col-span-2 lg:col-span-3 p-6 bg-surface border border-subtle flex flex-col justify-center items-center text-center space-y-3 ${
-                isViewer ? 'rounded-xl' : 'rounded-2xl'
+              className={`col-span-1 md:col-span-2 lg:col-span-3 p-6 flex flex-col justify-center items-center text-center space-y-3 ${
+                isViewer ? 'viewer-card' : 'bg-surface border border-subtle rounded-2xl'
               }`}
             >
               <CalendarDays className="w-8 h-8 text-mut mx-auto" />
@@ -1113,12 +1132,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
             return (
               <div
                 onClick={() => setSelectedOccurrence(upcomingEvent)}
-                className={`p-4 sm:p-5 bg-surface border motion-card cursor-pointer flex flex-col justify-between ${
+                className={`p-4 sm:p-5 motion-card cursor-pointer flex flex-col justify-between ${
                   isViewer
-                    ? 'rounded-xl hover:border-strong'
-                    : 'rounded-2xl hover:shadow-card hover:border-strong'
-                } ${
-                  isToday ? 'border-accent ring-1 ring-accent/30' : 'border-subtle'
+                    ? `viewer-card hover:border-strong ${isToday ? 'border-accent ring-1 ring-accent/30' : ''}`
+                    : `bg-surface border rounded-2xl hover:shadow-card hover:border-strong ${
+                        isToday ? 'border-accent ring-1 ring-accent/30' : 'border-subtle'
+                      }`
                 }`}
               >
                 <div className="space-y-3">
@@ -1132,15 +1151,33 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
                         Event
                       </span>
                     </div>
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
-                      style={{ backgroundColor: upcomingEvent.color || 'var(--accent-base)' }}
-                      title="Event color"
-                    />
+                    {!isViewer && (
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs"
+                        style={{ backgroundColor: upcomingEvent.color || 'var(--accent-base)' }}
+                        title="Event color"
+                      />
+                    )}
                   </div>
 
                   <div>
-                    <h4 className="text-base font-bold text-main line-clamp-1">
+                    <h4
+                      className={`font-bold line-clamp-1 ${
+                        isViewer ? 'text-base sm:text-lg' : 'text-base text-main'
+                      }`}
+                      style={
+                        isViewer
+                          ? {
+                              color: getReadableViewerTitleColor(
+                                upcomingEvent.color,
+                                settings.theme,
+                                settings.colorScheme,
+                                settings.accentColor
+                              )
+                            }
+                          : undefined
+                      }
+                    >
                       {upcomingEvent.title}
                     </h4>
                     <div className="flex items-center gap-3 text-xs text-sec mt-1">
@@ -1199,8 +1236,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
             );
           })() : (
             <div
-              className={`p-5 bg-surface border border-dashed border-subtle flex flex-col items-center justify-center text-center space-y-3 min-h-[220px] ${
-                isViewer ? 'rounded-xl' : 'rounded-2xl'
+              className={`p-5 flex flex-col items-center justify-center text-center space-y-3 min-h-[220px] ${
+                isViewer
+                  ? 'viewer-card border-dashed'
+                  : 'bg-surface border border-dashed border-subtle rounded-2xl'
               }`}
             >
               <div className="w-10 h-10 rounded-full bg-subtle flex items-center justify-center text-mut">
