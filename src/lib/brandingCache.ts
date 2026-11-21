@@ -45,9 +45,17 @@ export function isValidChurchLogo(val: unknown): val is string {
   return val.startsWith('data:image/') || val.startsWith('https://');
 }
 
+export const DEFAULT_HERO_BRIGHTNESS = 100;
+
 export function clampLoginDimming(val: unknown): number {
   if (typeof val !== 'number' || !Number.isFinite(val)) return 20;
   return Math.max(0, Math.min(60, Math.round(val)));
+}
+
+export function clampHeroBrightness(val: unknown): number {
+  if (typeof val !== 'number' || !Number.isFinite(val)) return DEFAULT_HERO_BRIGHTNESS;
+  const snapped = Math.round(val / 5) * 5;
+  return Math.max(30, Math.min(130, snapped));
 }
 
 export function isValidLoginBackgroundImage(val: unknown): val is string {

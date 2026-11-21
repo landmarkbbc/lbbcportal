@@ -63,7 +63,7 @@ import {
   LoginBackgroundConfig,
   Announcement
 } from '../types';
-import { clampLoginDimming } from '../lib/brandingCache';
+import { clampHeroBrightness, clampLoginDimming } from '../lib/brandingCache';
 
 import { getNextPeriodDateRange, toDateString } from '../lib/dateTime';
 
@@ -315,6 +315,9 @@ function buildPublicBrandingPayload(appSettings: AppSettings, vSettings: ViewerS
     facebookLink: appSettings.facebookLink || '',
     homeWelcomeLine: appSettings.homeWelcomeLine || '',
     homeIntroText: appSettings.homeIntroText || '',
+    ...(typeof appSettings.heroBrightness === 'number'
+      ? { heroBrightness: clampHeroBrightness(appSettings.heroBrightness) }
+      : {}),
     theme: normalized.theme,
     colorScheme: normalized.colorScheme,
     accentColor: normalizeAccentColor(appSettings.accentColor, 'red'),
@@ -851,6 +854,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             accentColor: safeAccent,
             clockStyle: data.clockStyle === 'analog' ? 'analog' : 'digital',
             clockColor: data.clockColor === 'black' ? 'black' : 'white',
+            heroBrightness: typeof data.heroBrightness === 'number'
+              ? clampHeroBrightness(data.heroBrightness)
+              : undefined,
             showDailyVerse: data.showDailyVerse ?? true,
           });
         }
@@ -1129,6 +1135,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (publicBranding.facebookLink || '') !== (desired.facebookLink || '') ||
       (publicBranding.homeWelcomeLine || '') !== (desired.homeWelcomeLine || '') ||
       (publicBranding.homeIntroText || '') !== (desired.homeIntroText || '') ||
+      (typeof publicBranding.heroBrightness === 'number'
+        ? clampHeroBrightness(publicBranding.heroBrightness)
+        : undefined) !== desired.heroBrightness ||
       publicBranding.theme !== desired.theme ||
       (publicBranding.colorScheme || DEFAULT_COLOR_SCHEME) !== desired.colorScheme ||
       publicBranding.accentColor !== desired.accentColor ||
@@ -2356,6 +2365,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       facebookLink: publicBranding.facebookLink || '',
       homeWelcomeLine: publicBranding.homeWelcomeLine || '',
       homeIntroText: publicBranding.homeIntroText || '',
+      ...(typeof publicBranding.heroBrightness === 'number'
+        ? { heroBrightness: clampHeroBrightness(publicBranding.heroBrightness) }
+        : {}),
       theme: DEFAULT_THEME_ID,
       colorScheme: viewerPrefs.colorScheme ?? getDevicePreferredColorScheme(),
       accentColor: normalizeAccentColor(publicBranding.accentColor, 'red'),

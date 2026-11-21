@@ -17,6 +17,7 @@ export interface AppSettings {
   aiStudioLink?: string;
   homeWelcomeLine?: string;
   homeIntroText?: string;
+  heroBrightness?: number;
   clockStyle?: ClockStyle;
   clockColor?: ClockColor;
   showDailyVerse?: boolean;
@@ -50,6 +51,7 @@ export interface PublicBranding {
   facebookLink?: string;
   homeWelcomeLine?: string;
   homeIntroText?: string;
+  heroBrightness?: number;
   theme?: ThemeBase;
   colorScheme?: ColorScheme;
   accentColor: AccentColor;

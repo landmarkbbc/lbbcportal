@@ -25,6 +25,10 @@
           "description": "Optional custom banner image",
           "maxLength": 500000
         },
+        "heroBrightness": {
+          "type": "number",
+          "description": "Optional Viewer Home hero image brightness percentage (30-130, default 100)"
+        },
         "theme": {
           "type": "string",
           "description": "Base theme mode: white, dark-gray, dark",
@@ -631,6 +635,7 @@
         "timeFormat": { "type": "string", "maxLength": 10 },
         "showDailyVerse": { "type": "boolean" },
         "facebookLink": { "type": "string", "maxLength": 300 },
+        "heroBrightness": { "type": "number" },
         "initialAccountCreated": { "type": "boolean" },
         "viewerMode": { "type": "string", "enum": ["open", "passcode"] },
         "viewerPasscodeConfigured": { "type": "boolean" },

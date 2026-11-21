@@ -427,25 +427,10 @@ body {
 }
 
 /* ================= VIEWER WELCOME OVERLAY ANIMATIONS ================= */
-.viewer-welcome-bg {
-  background: linear-gradient(160deg, #0c1933 0%, #071022 52%, #030712 100%);
-}
-
-@keyframes viewerWelcomeLightDrift {
-  0%, 100% {
-    transform: translate3d(-50%, -6%, 0) scale(1);
-    opacity: 0.36;
-  }
-  50% {
-    transform: translate3d(-46%, 4%, 0) scale(1.08);
-    opacity: 0.52;
-  }
-}
-
-@keyframes viewerWelcomeLogoIn {
+@keyframes viewerWelcomeLogoScaleFade {
   0% {
     opacity: 0;
-    transform: scale(0.9);
+    transform: scale(0.84);
   }
   100% {
     opacity: 1;
@@ -453,10 +438,24 @@ body {
   }
 }
 
-@keyframes viewerWelcomeEyebrowIn {
+@keyframes viewerWelcomeLogoPulseRing {
   0% {
     opacity: 0;
-    transform: translate3d(0, 8px, 0);
+    transform: scale(0.75);
+  }
+  20% {
+    opacity: 0.45;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+@keyframes viewerWelcomeRiseIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0);
   }
   100% {
     opacity: 1;
@@ -464,10 +463,10 @@ body {
   }
 }
 
-@keyframes viewerWelcomeTitleUp {
+@keyframes viewerWelcomeSubRiseIn {
   0% {
     opacity: 0;
-    transform: translate3d(0, 12px, 0);
+    transform: translate3d(0, 14px, 0);
   }
   100% {
     opacity: 1;
@@ -475,7 +474,7 @@ body {
   }
 }
 
-@keyframes viewerWelcomeLineDraw {
+@keyframes viewerWelcomeCenterLineDraw {
   0% {
     opacity: 0;
     transform: scaleX(0);
@@ -489,61 +488,92 @@ body {
   }
 }
 
-.viewer-welcome-light {
-  background: radial-gradient(
-    ellipse at 50% 42%,
-    rgba(56, 108, 198, 0.22) 0%,
-    rgba(30, 58, 138, 0.12) 44%,
-    transparent 74%
-  );
-  animation: viewerWelcomeLightDrift 16s ease-in-out infinite;
+@keyframes viewerWelcomeConfettiBurst {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.4);
+  }
+  22% {
+    opacity: var(--confetti-opacity, 0.75);
+    transform: translate3d(calc(var(--confetti-tx, 0px) * 0.55), calc(var(--confetti-ty, -32px) * 0.55), 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-tx, 0px), calc(var(--confetti-ty, -48px) - 24px), 0) scale(0.75);
+  }
 }
 
-.viewer-welcome-vignette {
-  background: radial-gradient(
-    ellipse at 50% 48%,
-    transparent 38%,
-    rgba(2, 6, 18, 0.58) 100%
-  );
+@keyframes viewerWelcomeMaskCircleExpand {
+  0% {
+    transform: scale(0);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
-.viewer-welcome-logo {
-  filter:
-    drop-shadow(0 0 18px rgba(186, 214, 255, 0.3))
-    drop-shadow(0 0 42px rgba(96, 165, 250, 0.16));
-  animation: viewerWelcomeLogoIn 720ms cubic-bezier(0.22, 1, 0.36, 1) 40ms both;
+@keyframes viewerHomeRevealSettle {
+  0% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
-.viewer-welcome-eyebrow {
-  animation: viewerWelcomeEyebrowIn 540ms cubic-bezier(0.22, 1, 0.36, 1) 340ms both;
+.viewer-welcome-mask-circle {
+  transform: scale(0);
+  will-change: transform;
 }
 
-.viewer-welcome-title {
-  animation: viewerWelcomeTitleUp 640ms cubic-bezier(0.22, 1, 0.36, 1) 560ms both;
+.viewer-welcome-mask-circle-expand {
+  animation: viewerWelcomeMaskCircleExpand 1000ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-.viewer-welcome-line {
-  transform-origin: left center;
-  animation: viewerWelcomeLineDraw 880ms cubic-bezier(0.22, 1, 0.36, 1) 860ms both;
+.viewer-welcome-logo-in {
+  animation: viewerWelcomeLogoScaleFade 800ms cubic-bezier(0.22, 1, 0.36, 1) 0ms both;
+}
+
+.viewer-welcome-logo-ring {
+  position: absolute;
+  width: 6.5rem;
+  height: 6.5rem;
+  border-radius: 9999px;
+  border: 2px solid var(--accent-base);
+  background: radial-gradient(circle, var(--accent-tint) 0%, transparent 70%);
+  pointer-events: none;
+  animation: viewerWelcomeLogoPulseRing 820ms cubic-bezier(0.16, 1, 0.3, 1) 40ms both;
+}
+
+.viewer-welcome-heading {
+  animation: viewerWelcomeRiseIn 1000ms cubic-bezier(0.22, 1, 0.36, 1) 600ms both;
+}
+
+.viewer-welcome-church {
+  animation: viewerWelcomeSubRiseIn 850ms cubic-bezier(0.22, 1, 0.36, 1) 1200ms both;
+}
+
+.viewer-welcome-center-line {
+  transform-origin: center;
+  animation: viewerWelcomeCenterLineDraw 900ms cubic-bezier(0.22, 1, 0.36, 1) 1300ms both;
+}
+
+.viewer-welcome-confetti-dot {
+  position: absolute;
+  border-radius: 9999px;
+  opacity: 0;
+  animation: viewerWelcomeConfettiBurst 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .viewer-welcome-light {
+  .viewer-welcome-logo-in,
+  .viewer-welcome-logo-ring,
+  .viewer-welcome-heading,
+  .viewer-welcome-church,
+  .viewer-welcome-center-line,
+  .viewer-welcome-confetti-dot,
+  .viewer-welcome-mask-circle-expand {
     animation: none !important;
-    opacity: 0.42 !important;
-    transform: translate3d(-50%, 0, 0) !important;
-  }
-  .viewer-welcome-logo,
-  .viewer-welcome-eyebrow,
-  .viewer-welcome-title {
-    animation: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-  }
-  .viewer-welcome-line {
-    animation: none !important;
-    opacity: 1 !important;
-    transform: scaleX(1) !important;
   }
 }
 
@@ -665,7 +695,7 @@ body {
 }
 
 /* 4. Buttons: subtle hover & soft press (no bounce; excludes calendar cells, login, welcome, previews) */
-button:not(:disabled):not([class*="cal-day-cell"]):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-bg):not(.viewer-welcome-bg *) {
+button:not(:disabled):not([class*="cal-day-cell"]):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-overlay):not(.viewer-welcome-overlay *) {
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -675,7 +705,7 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([data-no-motion="true"]):
     transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"]):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-bg):not(.viewer-welcome-bg *):active {
+button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"]):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-overlay):not(.viewer-welcome-overlay *):active {
   transform: scale(0.985);
 }
 
@@ -849,21 +879,30 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
   display: none;
 }
 
-/* 1. Wait to reveal Viewer header & Home sections until Welcome overlay begins crossfading out */
-.viewer-motion:has(.viewer-welcome-bg.opacity-100) > header {
-  opacity: 0;
+.viewer-motion {
+  overflow-x: clip;
 }
 
-.viewer-motion:has(.viewer-welcome-bg.opacity-100) .viewer-home-section,
-.viewer-motion:has(.viewer-welcome-bg.opacity-100) .motion-page-enter,
-.viewer-motion:has(.viewer-welcome-bg.opacity-100) .viewer-stagger-rows > div,
-.viewer-motion:has(.viewer-welcome-bg.opacity-100) .viewer-stagger-cards > div,
-.viewer-motion:has(.viewer-welcome-bg.opacity-100) .viewer-floating-note-btn {
-  opacity: 0;
+/* 1. Keep Home visible behind white welcome overlay and settle from 104% -> 100% during circular reveal */
+.viewer-motion:has(.viewer-welcome-overlay[data-welcome-phase="intro"]) main {
+  transform: scale(1.04);
+  transform-origin: center 35vh;
+}
+
+.viewer-motion:has(.viewer-welcome-overlay[data-welcome-phase="revealing"]) main {
+  transform-origin: center 35vh;
+  animation: viewerHomeRevealSettle 1000ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.viewer-motion:has(.viewer-welcome-overlay[data-welcome-phase="intro"]) .viewer-home-section,
+.viewer-motion:has(.viewer-welcome-overlay[data-welcome-phase="intro"]) .motion-page-enter,
+.viewer-motion:has(.viewer-welcome-overlay[data-welcome-phase="intro"]) .viewer-stagger-rows > div,
+.viewer-motion:has(.viewer-welcome-overlay[data-welcome-phase="intro"]) .viewer-stagger-cards > div {
   animation: none !important;
+  opacity: 1;
 }
 
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) > header {
+.viewer-motion:not(:has(.viewer-welcome-overlay)) > header {
   animation: viewerHeaderDown 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
@@ -951,44 +990,44 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
 }
 
 /* 3. Home sections sequential stagger (~0.12s step) + Birthdays & Upcoming card stagger */
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-home-section {
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-home-section {
   animation: viewerFadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-home-s1 {
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-home-s1 {
   animation-delay: 0s;
 }
 
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-home-s2 {
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-home-s2 {
   animation-delay: 0.12s;
 }
 
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-home-s3 {
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-home-s3 {
   animation-delay: 0.24s;
 }
 
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-home-s4 {
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-home-s4 {
   animation-delay: 0.36s;
 }
 
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-rows > div {
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-rows > div {
   animation: viewerItemFadeUp 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-rows > div:nth-child(1) { animation-delay: 0.28s; }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-rows > div:nth-child(2) { animation-delay: 0.32s; }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-rows > div:nth-child(3) { animation-delay: 0.36s; }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-rows > div:nth-child(4) { animation-delay: 0.40s; }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-rows > div:nth-child(5) { animation-delay: 0.44s; }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-rows > div:nth-child(6) { animation-delay: 0.48s; }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-rows > div:nth-child(n+7) { animation-delay: 0.52s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-rows > div:nth-child(1) { animation-delay: 0.28s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-rows > div:nth-child(2) { animation-delay: 0.32s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-rows > div:nth-child(3) { animation-delay: 0.36s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-rows > div:nth-child(4) { animation-delay: 0.40s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-rows > div:nth-child(5) { animation-delay: 0.44s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-rows > div:nth-child(6) { animation-delay: 0.48s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-rows > div:nth-child(n+7) { animation-delay: 0.52s; }
 
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-cards > div {
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-cards > div {
   animation: viewerItemFadeUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-cards > div:nth-child(1) { animation-delay: 0.40s; }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-cards > div:nth-child(2) { animation-delay: 0.46s; }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-cards > div:nth-child(3) { animation-delay: 0.52s; }
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-stagger-cards > div:nth-child(4) { animation-delay: 0.58s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-cards > div:nth-child(1) { animation-delay: 0.40s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-cards > div:nth-child(2) { animation-delay: 0.46s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-cards > div:nth-child(3) { animation-delay: 0.52s; }
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-stagger-cards > div:nth-child(4) { animation-delay: 0.58s; }
 
 /* 4. Viewer cards & buttons: flat surfaces, thin borders, crisp border hover (no heavy shadows) */
 @keyframes viewerHeroCue {
@@ -1032,7 +1071,7 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
   transform: scale(0.992);
 }
 
-.viewer-motion button:not(:disabled):not([class*="cal-day-cell"]):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-bg):not(.viewer-welcome-bg *) {
+.viewer-motion button:not(:disabled):not([class*="cal-day-cell"]):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-overlay):not(.viewer-welcome-overlay *) {
   transition:
     background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
     border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
@@ -1042,13 +1081,13 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
 }
 
 @media (hover: hover) {
-  .viewer-motion button:not(:disabled):not([class*="cal-day-cell"]):not(header nav button):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-bg):not(.viewer-welcome-bg *):is(.bg-accent, .border, .shadow-xs, .shadow-card, .shadow-lg):hover {
+  .viewer-motion button:not(:disabled):not([class*="cal-day-cell"]):not(header nav button):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-overlay):not(.viewer-welcome-overlay *):is(.bg-accent, .border, .shadow-xs, .shadow-card, .shadow-lg):hover {
     transform: none;
     box-shadow: none;
   }
 }
 
-.viewer-motion button:not(:disabled):not([class*="cal-day-cell"]):not(header nav button):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-bg):not(.viewer-welcome-bg *):active {
+.viewer-motion button:not(:disabled):not([class*="cal-day-cell"]):not(header nav button):not([data-no-motion="true"]):not([data-no-motion="true"] *):not(.login-bg-navy *):not(.viewer-welcome-overlay):not(.viewer-welcome-overlay *):active {
   transform: scale(0.985);
 }
 
@@ -1085,7 +1124,7 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
   animation: viewerSentFadeIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
-.viewer-motion:not(:has(.viewer-welcome-bg.opacity-100)) .viewer-floating-note-btn {
+.viewer-motion:not(:has(.viewer-welcome-overlay)) .viewer-floating-note-btn {
   animation: viewerPopupIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.15s backwards;
 }
 
@@ -1148,12 +1187,13 @@ button:not(:disabled):not([class*="cal-day-cell"]):not([class*="active:scale-"])
 
 /* 9. Respect prefers-reduced-motion: turn off ALL Viewer movement */
 @media (prefers-reduced-motion: reduce) {
-  .viewer-motion:has(.viewer-welcome-bg.opacity-100) > header,
-  .viewer-motion:has(.viewer-welcome-bg.opacity-100) .viewer-home-section,
-  .viewer-motion:has(.viewer-welcome-bg.opacity-100) .motion-page-enter,
-  .viewer-motion:has(.viewer-welcome-bg.opacity-100) .viewer-stagger-rows > div,
-  .viewer-motion:has(.viewer-welcome-bg.opacity-100) .viewer-stagger-cards > div,
-  .viewer-motion:has(.viewer-welcome-bg.opacity-100) .viewer-floating-note-btn,
+  .viewer-motion:has(.viewer-welcome-overlay) main,
+  .viewer-motion:has(.viewer-welcome-overlay) > header,
+  .viewer-motion:has(.viewer-welcome-overlay) .viewer-home-section,
+  .viewer-motion:has(.viewer-welcome-overlay) .motion-page-enter,
+  .viewer-motion:has(.viewer-welcome-overlay) .viewer-stagger-rows > div,
+  .viewer-motion:has(.viewer-welcome-overlay) .viewer-stagger-cards > div,
+  .viewer-motion:has(.viewer-welcome-overlay) .viewer-floating-note-btn,
   .viewer-motion > header,
   .viewer-motion .motion-page-enter,
   .viewer-motion .motion-list-enter,

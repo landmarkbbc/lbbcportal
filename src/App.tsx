@@ -132,6 +132,7 @@ function AppContent() {
     publicBrandingError,
     viewerUnlocked,
     viewerUnlockChecking,
+    viewerPasscodeSubmitting,
     viewerWelcomePending,
     dismissViewerWelcome,
     recheckAuth,
@@ -235,6 +236,7 @@ function AppContent() {
     !isSecretaryAccount &&
     !publicBrandingLoading &&
     publicBranding.viewerMode === 'passcode' &&
+    !viewerPasscodeSubmitting &&
     viewerUnlockChecking
   );
 
@@ -338,6 +340,16 @@ function AppContent() {
       );
     }
 
+    if (isViewer || loading || publicBrandingLoading) {
+      return (
+        <div
+          className="min-h-[100dvh] w-full bg-white"
+          aria-busy="true"
+          aria-label="Loading"
+        />
+      );
+    }
+
     return <PageLoading fullScreen label="Loading..." />;
   }
 
@@ -360,6 +372,7 @@ function AppContent() {
         <ViewerWelcomeOverlay
           churchName={settings.churchName || publicBranding.churchName}
           churchLogo={settings.churchLogo || publicBranding.churchLogo}
+          accentColor={publicBranding.accentColor}
           isDataLoading={isAppLoading}
           onDone={dismissViewerWelcome}
         />

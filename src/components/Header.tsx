@@ -54,9 +54,6 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
   const [peopleDropdownOpen, setPeopleDropdownOpen] = useState(false);
   const [tasksDropdownOpen, setTasksDropdownOpen] = useState(false);
 
-  // Viewer Home scroll state for transparent-to-solid header transition
-  const [isHeroScrolled, setIsHeroScrolled] = useState(false);
-
   // Mobile accordion states
   const [mobileServicesExpanded, setMobileServicesExpanded] = useState(false);
   const [mobilePeopleExpanded, setMobilePeopleExpanded] = useState(false);
@@ -85,22 +82,6 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-  // Track scroll position only on Viewer Home for transparent-to-solid header
-  useEffect(() => {
-    if (!isViewer || currentTab !== 'home') {
-      setIsHeroScrolled(false);
-      return;
-    }
-    const updateScrolled = () => {
-      setIsHeroScrolled(window.scrollY > 24);
-    };
-    updateScrolled();
-    window.addEventListener('scroll', updateScrolled, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', updateScrolled);
-    };
-  }, [isViewer, currentTab]);
 
   const handleNavClick = (tab: string) => {
     onNavigate(tab);
@@ -132,25 +113,16 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate, onOpenVi
     currentTab === 'sunday-school';
   const isMessagingActive = currentTab === 'message-templates';
 
-  const isViewerHome = isViewer && currentTab === 'home';
-  const isOverHero = isViewerHome && !isHeroScrolled && !mobileMenuOpen;
+  const isOverHero = false;
 
   const headerClassName = !isViewer
     ? 'sticky top-0 z-40 w-full bg-surface border-b border-subtle shadow-xs select-none'
-    : isViewerHome
-      ? `fixed top-0 left-0 right-0 z-40 w-full transition-colors duration-200 select-none ${
-          isOverHero
-            ? 'bg-transparent border-b border-transparent text-white'
-            : 'bg-surface/95 backdrop-blur-md border-b border-subtle'
-        }`
-      : 'sticky top-0 z-40 w-full bg-surface/95 backdrop-blur-md border-b border-subtle transition-colors duration-200 select-none';
+    : 'sticky top-0 md:static z-40 w-full bg-surface text-main border-b border-subtle select-none';
 
-  const viewerFocusRing = isOverHero
-    ? 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80'
-    : 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50';
+  const viewerFocusRing = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50';
 
   return (
-    <header className={headerClassName} data-over-hero={isOverHero ? 'true' : undefined}>
+    <header className={headerClassName}>
       <div
         className={`${
           isViewer ? 'max-w-[1100px] h-14 sm:h-16' : 'max-w-7xl h-16'

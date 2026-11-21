@@ -23,6 +23,7 @@ import {
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { compressImage, compressBannerImage, compressLoginBackgroundImage } from '../lib/imageCompressor';
+import { clampHeroBrightness } from '../lib/brandingCache';
 import {
   THEME_CATALOGUE,
   ACCENT_CATALOGUE,
@@ -68,6 +69,8 @@ export const SettingsPage: React.FC = () => {
   const [bannerUploading, setBannerUploading] = useState(false);
   const [bannerError, setBannerError] = useState<string | null>(null);
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
+  const savedHeroBrightness = clampHeroBrightness(settings.heroBrightness);
+  const [heroBrightnessDraft, setHeroBrightnessDraft] = useState<number>(savedHeroBrightness);
 
   const [loginBgUploading, setLoginBgUploading] = useState(false);
   const [loginBgError, setLoginBgError] = useState<string | null>(null);
@@ -114,6 +117,10 @@ export const SettingsPage: React.FC = () => {
   useEffect(() => {
     setDimmingDraft(loginBackground.dimming);
   }, [loginBackground.dimming]);
+
+  useEffect(() => {
+    setHeroBrightnessDraft(clampHeroBrightness(settings.heroBrightness));
+  }, [settings.heroBrightness]);
 
   // Facebook link validation and save
   const handleFacebookBlur = () => {
@@ -302,6 +309,21 @@ export const SettingsPage: React.FC = () => {
   const handleRemoveBanner = async () => {
     setBannerError(null);
     await updateBannerImage('');
+  };
+
+  const commitHeroBrightness = async (nextBrightness: number) => {
+    const clamped = clampHeroBrightness(nextBrightness);
+    setHeroBrightnessDraft(clamped);
+    if (clamped !== savedHeroBrightness) {
+      await updateSettings({ heroBrightness: clamped });
+    }
+  };
+
+  const handleResetHeroBrightness = async () => {
+    setHeroBrightnessDraft(100);
+    if (settings.heroBrightness !== 100) {
+      await updateSettings({ heroBrightness: 100 });
+    }
   };
 
   // Login screen background upload (max 1920px, JPEG ~0.8, target <600KB, refuse >800KB)
@@ -660,10 +682,29 @@ export const SettingsPage: React.FC = () => {
                     alt="Home Banner Preview"
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
+                    style={{ filter: `brightness(${heroBrightnessDraft}%)` }}
                   />
-                  <div className="absolute inset-0 flex items-end p-4 pointer-events-none">
-                    <span className="text-white text-xs font-semibold px-2 py-1 rounded bg-black/60 backdrop-blur-xs">
-                      Live Banner Preview
+                  <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center pointer-events-none">
+                    <span
+                      className="text-white text-base sm:text-lg font-bold tracking-tight line-clamp-1"
+                      style={{
+                        textShadow: '0 2px 16px rgba(0, 0, 0, 0.55), 0 1px 4px rgba(0, 0, 0, 0.45)',
+                      }}
+                    >
+                      {settings.churchName || 'Our Church'}
+                    </span>
+                    <span
+                      className="text-white/95 text-xs mt-0.5 line-clamp-1"
+                      style={{
+                        textShadow: '0 1px 12px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.45)',
+                      }}
+                    >
+                      {(settings.homeWelcomeLine || '').trim() || `Welcome to ${settings.churchName || 'Our Church'}`}
+                    </span>
+                  </div>
+                  <div className="absolute bottom-2.5 left-3 pointer-events-none">
+                    <span className="text-white text-[11px] font-semibold px-2 py-0.5 rounded bg-black/55 backdrop-blur-xs">
+                      Live Hero Preview · {heroBrightnessDraft}%
                     </span>
                   </div>
                 </>
@@ -710,6 +751,47 @@ export const SettingsPage: React.FC = () => {
               <span className="text-[11px] text-mut">
                 Stored in its own document. Automatically compressed (max 1600px wide, ~0.75 JPEG, under 600 KB).
               </span>
+            </div>
+
+            {/* Hero Image Brightness Slider (30% to 130% in 5% steps, default 100%) */}
+            <div className="max-w-md space-y-1.5 pt-2">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <label htmlFor="hero-image-brightness" className="font-semibold text-main">
+                  Hero image brightness
+                </label>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <span className="font-semibold text-sec tabular-nums">{heroBrightnessDraft}%</span>
+                  <button
+                    type="button"
+                    onClick={handleResetHeroBrightness}
+                    disabled={heroBrightnessDraft === 100 && savedHeroBrightness === 100}
+                    className="text-xs font-medium text-accent hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline disabled:cursor-default"
+                  >
+                    Reset to 100%
+                  </button>
+                </div>
+              </div>
+              <input
+                id="hero-image-brightness"
+                type="range"
+                min={30}
+                max={130}
+                step={5}
+                value={heroBrightnessDraft}
+                onChange={(e) => setHeroBrightnessDraft(clampHeroBrightness(Number(e.target.value)))}
+                onPointerUp={(e) => commitHeroBrightness(Number((e.target as HTMLInputElement).value))}
+                onKeyUp={(e) => commitHeroBrightness(Number((e.target as HTMLInputElement).value))}
+                onBlur={(e) => commitHeroBrightness(Number((e.target as HTMLInputElement).value))}
+                className="w-full accent-[var(--accent-base)] cursor-pointer"
+              />
+              <div className="flex items-center justify-between text-[11px] text-mut">
+                <span>30% (Darker)</span>
+                <span>100% (Original)</span>
+                <span>130% (Brighter)</span>
+              </div>
+              <p className="text-[11px] text-mut">
+                Adjusts the Viewer Home hero photo brightness only; hero text stays at full clarity.
+              </p>
             </div>
 
             {bannerError && (

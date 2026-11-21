@@ -583,7 +583,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
 
   if (dataLoading.home) {
     return (
-      <div className={`${isViewer ? 'max-w-[1100px] pt-24' : 'max-w-7xl py-6 sm:py-8'} mx-auto px-4 sm:px-6 lg:px-8`}>
+      <div className={`${isViewer ? 'max-w-[1100px] py-10' : 'max-w-7xl py-6 sm:py-8'} mx-auto px-4 sm:px-6 lg:px-8`}>
         <PageLoading />
       </div>
     );
@@ -613,6 +613,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate, onOpenVisitorsTo
             churchName={displayChurchName}
             welcomeLine={welcomeLine}
             bannerUrl={activeBannerUrl}
+            heroBrightness={settings.heroBrightness}
           />
 
           <section

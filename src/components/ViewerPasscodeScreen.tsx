@@ -1,8 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { normalizeAccentColor } from '../lib/brandingCache';
 
-const WRONG_CODE_MESSAGE = "That code doesn't look right. Please check and try again.";
+const WRONG_CODE_MESSAGE = 'Wrong passcode. Please check the code and try again.';
 
 export const ViewerPasscodeScreen: React.FC = () => {
   const {
@@ -18,12 +18,20 @@ export const ViewerPasscodeScreen: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [shakeKey, setShakeKey] = useState(0);
+  const [focusFirstPending, setFocusFirstPending] = useState(false);
   const digitRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const isChecking = submitting || viewerPasscodeSubmitting;
   const churchDisplayName = (publicBranding.churchName || '').trim() || 'Our Church';
   const accentColor = normalizeAccentColor(publicBranding.accentColor, 'red');
   const hasImage = Boolean(loginBackground.imageData);
+
+  useEffect(() => {
+    if (focusFirstPending && !isChecking) {
+      digitRefs.current[0]?.focus();
+      setFocusFirstPending(false);
+    }
+  }, [focusFirstPending, isChecking]);
 
   const triggerError = (msg: string) => {
     setErrorMessage(msg);
@@ -55,7 +63,9 @@ export const ViewerPasscodeScreen: React.FC = () => {
       ) {
         triggerError(rawMsg);
       } else {
+        setDigits(['', '', '', '', '', '']);
         triggerError(WRONG_CODE_MESSAGE);
+        setFocusFirstPending(true);
       }
     } finally {
       setSubmitting(false);
